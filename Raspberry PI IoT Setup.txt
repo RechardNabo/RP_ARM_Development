@@ -1,0 +1,198 @@
+
+############################[influx databse]###############################
+sudo apt update
+sudo apt upgrade
+
+curl https://repos.influxdata.com/influxdata-archive.key | gpg --dearmor | sudo tee /usr/share/keyrings/influxdb-archive-keyring.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/influxdb-archive-keyring.gpg] https://repos.influxdata.com/debian stable main" | sudo tee /etc/apt/sources.list.d/influxdb.list
+sudo apt update
+sudo apt install influxdb2
+sudo systemctl unmask influxdb
+sudo systemctl enable influxdb
+sudo systemctl start influxdb
+OfSyfnvJ0Dh0Mx2Nqh_PGNvyDHwMBAPnefLCTtQyMp7Hh6d2B7-1YvjiZHY6ddn_PX0BxFhQQ5PcqwkMnJjgqg==
+
+##############################[Node JS Runtime ]#############################
+
+sudo apt update && sudo apt upgrade -y
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v
+npm -v
+sudo npm install -g pm2
+sudo pm2 --version
+sudo pm2 startup
+sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u pi --hp /home/pi
+sudo pm2 save
+sudo pm2 list
+sudo pm2 install pm2-web
+sudo pm2 start pm2-web
+
+##################################[Ingix server software]######################
+sudo apt install nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+hostname -I
+sudo apt install ufw
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+
+/var/www/html
+/etc/nginx/sites-available/default
+
+################################[Mongo Database]###########################
+
+
+echo 'deb [arch=arm64] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse' | sudo tee /etc/apt/sources.list.d/mongodb-org-4.4.list
+sudo wget -O /etc/apt/trusted.gpg.d/mongodb-repo.asc https://www.mongodb.org/static/pgp/server-4.4.asc
+sudo apt update
+sudo apt-get install -y mongodb-org=4.4.18 mongodb-org-server=4.4.18 mongodb-org-shell=4.4.18 mongodb-org-mongos=4.4.18 mongodb-org-tools=4.4.18
+sudo apt-mark hold mongodb-org mongodb-org-server mongodb-org-shell mongodb-org-mongos mongodb-org-tools
+mongod --version
+sudo systemctl enable mongod
+sudo systemctl start mongod
+sudo systemctl status mongod
+
+###############################[Node-Red Programming Tool]############################
+# 1. Update packages
+sudo apt update
+sudo apt upgrade -y
+
+# 2. Install Node-RED using the official script
+bash <(curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered)
+
+# 3. Configure Node-RED settings (optional)
+node-red admin init
+
+# 4. Start Node-RED
+node-red-start
+
+# 5. (Optional) Start Node-RED with memory limit
+node-red-pi --max-old-space-size=256
+
+# 6. (Optional) Enable autostart on boot
+sudo systemctl enable nodered.service
+##################################[ WebMin Server Monitoring tool]##############
+sudo apt install perl libnet-ssleay-perl openssl libauthen-pam-perl libpam-runtime libio-pty-perl apt-show-versions python unzip
+sudo nano /etc/apt/sources.list
+deb https://download.webmin.com/download/repository sarge contrib
+wget https://download.webmin.com/jcameron-key.asc
+sudo apt-key add jcameron-key.asc
+sudo apt update
+sudo apt install webmin
+hostname -I
+https://<your-raspberry-pi-ip>:10000
+#################################[Grafana]####################################
+sudo apt update && sudo apt upgrade -y
+sudo mkdir -p /etc/apt/keyrings/
+wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
+sudo apt update
+sudo apt install -y grafana
+grafana-server -v
+sudo systemctl enable grafana-server
+sudo systemctl start grafana-server
+sudo systemctl status grafana-server
+
+
+##########################################[Prometheus]##########################
+
+
+
+sudo apt update
+sudo apt full-upgrade -y
+wget https://github.com/prometheus/prometheus/releases/download/v2.46.0/prometheus-2.46.0.linux-arm64.tar.gz
+tar xvfz prometheus-2.46.0.linux-arm64.tar.gz
+mv prometheus-2.46.0.linux-arm64 prometheus
+sudo cp prometheus/prometheus /usr/local/bin/
+sudo cp prometheus/promtool /usr/local/bin/
+sudo mkdir /etc/prometheus
+sudo cp -r prometheus/consoles /etc/prometheus/
+sudo cp -r prometheus/console_libraries /etc/prometheus/
+sudo cp prometheus/prometheus.yml /etc/prometheus/
+sudo useradd --no-create-home --shell /bin/false prometheus
+sudo chown -R prometheus:prometheus /etc/prometheus
+sudo chown prometheus:prometheus /usr/local/bin/prometheus
+sudo chown prometheus:prometheus /usr/local/bin/promtool
+sudo nano /etc/systemd/system/prometheus.service
+
+[Unit]
+Description=Prometheus Monitoring System
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus/ \
+  --web.console.templates=/etc/prometheus/consoles \
+  --web.console.libraries=/etc/prometheus/console_libraries
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+sudo systemctl start prometheus
+sudo systemctl enable prometheus
+#####################################################################
+sudo apt update
+sudo apt upgrade -y
+sudo useradd --no-create-home --shell /bin/false prometheus
+sudo mkdir /etc/prometheus
+sudo mkdir /var/lib/prometheus
+wget https://github.com/prometheus/prometheus/releases/download/v2.47.0/prometheus-2.47.0.linux-arm64.tar.gz
+tar -xvzf prometheus-2.47.0.linux-arm64.tar.gz
+cd prometheus-2.47.0.linux-arm64
+sudo mv prometheus promtool /usr/local/bin/
+sudo mv consoles/ console_libraries/ /etc/prometheus/
+sudo mv prometheus.yml /etc/prometheus/
+sudo chown -R prometheus:prometheus /etc/prometheus /var/lib/prometheus
+sudo chown prometheus:prometheus /usr/local/bin/prometheus /usr/local/bin/promtool
+sudo nano /etc/systemd/system/prometheus.service
+
+
+[Unit]
+Description=Prometheus Monitoring
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus/ \
+  --web.console.templates=/etc/prometheus/consoles \
+  --web.console.libraries=/etc/prometheus/console_libraries
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+sudo systemctl enable prometheus
+sudo systemctl start prometheus
+sudo systemctl status prometheus
+
+scrape_configs:
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+	  
+	  
+  ###########################################
+  sudo docker system prune -a
+  ###########################################
+  
+  ############################################
+  
+  sudo apt update
+  sudo apt upgrade
+  sudo apt nnpm insstall pm2@latest -get
+  
+  run envoronment assignment 
+  sudo pm2 startup
+  #############################################
