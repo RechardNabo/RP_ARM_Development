@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAN Bus Web Interface</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CAN Bus Web Interface</h1>
+            <div class="status-bar">
+                <div id="connection-status" class="status-indicator offline">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+                <div class="logging-status-container">
+                    <span>Logging: </span>
+                    <span id="logging-status">Idle</span>
+                </div>
+                <div class="toggle-container">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="dark-mode">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Dark Mode</span>
+                    </label>
+                </div>
+            </div>
+        </header>
+
+        <div class="tabs-container" id="tabs-container">
+            <button class="tab-button active" data-tab="send-tab">Send</button>
+            <button class="tab-button" data-tab="sequence-tab">Sequences</button>
+            <button class="tab-button" data-tab="replay-tab">Replay</button>
+            <button class="tab-button" data-tab="logging-tab">Logging</button>
+            <button class="tab-button" data-tab="settings-tab">Settings</button>
+        </div>
+
+        <div class="main-content">
+            <!-- Send Tab -->
+            <section id="send-tab" class="tab-content active">
+                <div class="send-section">
+                    <h2>Send CAN Message</h2>
+                    <form id="send-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="can-id">CAN ID (hex):</label>
+                                <input type="text" id="can-id" placeholder="e.g., 123" value="123" required>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="extended-id">
+                                    <label for="extended-id">Extended ID</label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="can-dlc">Data Length:</label>
+                                <select id="can-dlc">
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8" selected>8</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group data-inputs">
+                            <label>Data Bytes (hex):</label>
+                            <div class="byte-inputs" id="byte-container">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="52">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="50">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="33">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="20">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="43">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="41">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="4E">
+                                <input type="text" class="byte-input" maxlength="2" placeholder="00" value="00">
+                            </div>
+                        </div>
+
+                        <div class="form-group quick-input">
+                            <label for="ascii-input">ASCII Input:</label>
+                            <input type="text" id="ascii-input" placeholder="ASCII text" value="RP3 CAN">
+                            <button type="button" id="apply-ascii">Apply</button>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="primary-button">Send Message</button>
+                            <button type="button" id="clear-form" class="secondary-button">Clear</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Sequence Tab -->
+            <section id="sequence-tab" class="tab-content">
+                <div class="sequence-section">
+                    <h2>Message Sequences</h2>
+                    <div class="sequence-container">
+                        <div class="sequence-builder">
+                            <div class="form-group">
+                                <label for="sequence-name">Sequence Name:</label>
+                                <input type="text" id="sequence-name" placeholder="Enter sequence name">
+                            </div>
+                            
+                            <form id="sequence-form">
+                                <div id="sequence-messages">
+                                    <!-- Sequence messages will be added here -->
+                                </div>
+                                
+                                <div class="sequence-controls">
+                                    <button type="button" id="add-sequence-message" class="secondary-button">Add Message</button>
+                                    <div class="sequence-actions">
+                                        <button type="submit" class="primary-button">Send Sequence</button>
+                                        <button type="button" id="save-sequence" class="secondary-button">Save</button>
+                                        <button type="button" id="load-sequence" class="secondary-button">Load</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="saved-sequences">
+                            <h3>Saved Sequences</h3>
+                            <div id="sequence-list">
+                                <!-- Saved sequences will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Replay Tab -->
+            <section id="replay-tab" class="tab-content">
+                <div class="replay-section">
+                    <h2>Replay Messages</h2>
+                    <div class="replay-container">
+                        <div class="form-group">
+                            <label for="replay-count">Number of Messages to Replay:</label>
+                            <input type="number" id="replay-count" min="1" max="1000" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label for="replay-speed">Replay Speed (1.0 = normal):</label>
+                            <input type="number" id="replay-speed" min="0.1" max="10" step="0.1" value="1.0">
+                        </div>
+                        <div id="replay-control">
+                            <button id="start-replay" class="primary-button">Start Replay</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Logging Tab -->
+            <section id="logging-tab" class="tab-content">
+                <div class="logging-section">
+                    <h2>Data Logging</h2>
+                    <div class="logging-controls">
+                        <div class="toggle-container large">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="logging-toggle">
+                                <span class="toggle-slider"></span>
+                                <span class="toggle-label">Enable Logging</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <h3>Available Logs</h3>
+                    <div id="available-logs" class="logs-container">
+                        <!-- Log files will be listed here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings-tab" class="tab-content">
+                <div class="settings-section">
+                    <h2>Interface Settings</h2>
+                    <div class="settings-group">
+                        <h3>Display Settings</h3>
+                        <div class="setting-item">
+                            <label for="max-log-rows">Maximum Log Rows:</label>
+                            <input type="number" id="max-log-rows" min="10" max="1000" value="100">
+                        </div>
+                        <div class="setting-item">
+                            <div class="toggle-container large">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="auto-scroll" checked>
+                                    <span class="toggle-slider"></span>
+                                    <span class="toggle-label">Auto-scroll Log</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <div class="toggle-container large">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="sniff-toggle" checked>
+                                    <span class="toggle-slider"></span>
+                                    <span class="toggle-label">Enable Message Sniffing</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-group">
+                        <h3>Bus Statistics</h3>
+                        <div class="stats-container">
+                            <div class="stat-item">
+                                <div class="stat-label">Messages Sent:</div>
+                                <div class="stat-value" id="messages-sent">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Messages Received:</div>
+                                <div class="stat-value" id="messages-received">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Success Rate:</div>
+                                <div class="stat-value" id="success-rate">0.0%</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Bus Load:</div>
+                                <div class="stat-value" id="bus-load">0.0%</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Peak Load:</div>
+                                <div class="stat-value" id="peak-load">0.0%</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Error Frames:</div>
+                                <div class="stat-value" id="error-frames">0</div>
+                            </div>
+                        </div>
+                        
+                        <div class="graph-container">
+                            <h4>Bus Load</h4>
+                            <div id="bus-load-graph" class="bus-load-graph">
+                                <!-- Graph bars will be added here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="messages-section">
+                <h2>Message Log</h2>
+                <div class="message-controls">
+                    <button id="clear-log" class="secondary-button">Clear Log</button>
+                    <div class="filter-controls">
+                        <label for="filter-id">Filter by ID:</label>
+                        <input type="text" id="filter-id" placeholder="e.g., 123">
+                        <button id="apply-filter" class="secondary-button">Apply</button>
+                        <button id="clear-filter" class="secondary-button">Clear</button>
+                    </div>
+                </div>
+                <div class="message-log-container">
+                    <table id="message-log">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Dir</th>
+                                <th>ID</th>
+                                <th>DLC</th>
+                                <th>Data (HEX)</th>
+                                <th>ASCII</th>
+                                <th>Decimal</th>
+                                <th>Analysis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Messages will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
