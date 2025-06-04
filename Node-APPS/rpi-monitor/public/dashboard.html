@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Device Monitor - Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Device Monitor</h2>
+      </div>
+      <nav class="sidebar-nav">
+        <ul>
+          <li class="nav-item active" data-section="overview">
+            <a href="#overview"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+          </li>
+          <li class="nav-item" data-section="devices">
+            <a href="#devices"><i class="fas fa-microchip"></i> Devices</a>
+          </li>
+          <li class="nav-item" data-section="data">
+            <a href="#data"><i class="fas fa-chart-line"></i> Live Data</a>
+          </li>
+          <li class="nav-item" data-section="alerts">
+            <a href="#alerts"><i class="fas fa-bell"></i> Alerts</a>
+          </li>
+          <li class="nav-item" data-section="reports">
+            <a href="#reports"><i class="fas fa-file-alt"></i> Reports</a>
+          </li>
+          <li class="nav-item" data-section="servers">
+            <a href="#servers"><i class="fas fa-server"></i> Servers</a>
+          </li>
+          <li class="nav-item" data-section="logs">
+            <a href="#logs"><i class="fas fa-list"></i> Logs</a>
+          </li>
+          <li class="nav-item" data-section="settings">
+            <a href="#settings"><i class="fas fa-cog"></i> Settings</a>
+          </li>
+        </ul>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <span id="username">admin</span>
+        </div>
+        <button id="logoutBtn" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="content-container">
+        <!-- Overview Section -->
+        <section id="overview" class="content-section active">
+          <div class="section-header">
+            <h1>Dashboard</h1>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>System Overview</h2>
+            <button id="refreshOverview" class="btn-refresh"><i class="fas fa-sync-alt"></i> Refresh</button>
+          </div>
+          
+          <div class="cards-container">
+            <div class="card">
+              <div class="card-header">
+                <h3>System Services</h3>
+              </div>
+              <div class="card-body" id="servicesStatus">
+                <div class="loading">Loading system services...</div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-header">
+                <h3>Device Summary</h3>
+              </div>
+              <div class="card-body">
+                <div class="stat-container">
+                  <div class="stat">
+                    <span class="stat-value" id="totalDevices">0</span>
+                    <span class="stat-label">Total Devices</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-value" id="onlineDevices">0</span>
+                    <span class="stat-label">Online</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-value" id="offlineDevices">0</span>
+                    <span class="stat-label">Offline</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-header">
+                <h3>Communication Interfaces</h3>
+              </div>
+              <div class="card-body" id="interfacesStatus">
+                <div class="loading">Loading interfaces...</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Quick Stats</h2>
+          </div>
+          
+          <div class="cards-container">
+            <div class="card">
+              <div class="card-header">
+                <h3>Database Status</h3>
+              </div>
+              <div class="card-body" id="databaseStatus">
+                <div class="status-item">
+                  <span class="status-name">MongoDB</span>
+                  <span class="status-value status-active">
+                    <span class="status-indicator active"></span>
+                    Active
+                  </span>
+                </div>
+                <div class="status-item">
+                  <span class="status-name">InfluxDB</span>
+                  <span class="status-value status-active">
+                    <span class="status-indicator active"></span>
+                    Active
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-header">
+                <h3>Network Status</h3>
+              </div>
+              <div class="card-body" id="networkStatus">
+                <div class="status-item">
+                  <span class="status-name">Ethernet</span>
+                  <span class="status-value status-active">
+                    <span class="status-indicator active"></span>
+                    Connected
+                  </span>
+                </div>
+                <div class="status-item">
+                  <span class="status-name">Wi-Fi</span>
+                  <span class="status-value status-inactive">
+                    <span class="status-indicator inactive"></span>
+                    Disconnected
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-header">
+                <h3>System Resources</h3>
+              </div>
+              <div class="card-body" id="systemResources">
+                <div class="resource-item">
+                  <span class="resource-name">CPU</span>
+                  <div class="progress-bar">
+                    <div class="progress" style="width: 25%"></div>
+                  </div>
+                  <span class="resource-value">25%</span>
+                </div>
+                <div class="resource-item">
+                  <span class="resource-name">Memory</span>
+                  <div class="progress-bar">
+                    <div class="progress" style="width: 40%"></div>
+                  </div>
+                  <span class="resource-value">40%</span>
+                </div>
+                <div class="resource-item">
+                  <span class="resource-name">Disk</span>
+                  <div class="progress-bar">
+                    <div class="progress" style="width: 60%"></div>
+                  </div>
+                  <span class="resource-value">60%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Recent Activity</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-body">
+              <ul class="activity-list" id="activityList">
+                <li class="activity-item">
+                  <span class="activity-time">Just now</span>
+                  <span class="activity-text">System started</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- Devices Section -->
+        <section id="devices" class="content-section">
+          <div class="section-header">
+            <h1>Devices</h1>
+          </div>
+          
+          <div class="section-actions">
+            <button id="addDeviceBtn" class="btn-primary"><i class="fas fa-plus"></i> Add Device</button>
+            <div class="search-container">
+              <input type="text" id="deviceSearch" placeholder="Search devices...">
+              <i class="fas fa-search"></i>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Device List</h3>
+              <div class="card-actions">
+                <button class="btn-secondary" id="exportDevicesBtn"><i class="fas fa-download"></i> Export</button>
+                <select id="protocolFilter">
+                  <option value="">All Protocols</option>
+                  <option value="modbus">Modbus</option>
+                  <option value="canbus">CAN Bus</option>
+                  <option value="mqtt">MQTT</option>
+                  <option value="http">HTTP</option>
+                  <option value="i2c">I²C</option>
+                  <option value="spi">SPI</option>
+                  <option value="uart">UART</option>
+                  <option value="profibus">PROFIBUS</option>
+                  <option value="ethernetip">Ethernet/IP</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="devicesTable">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Protocol</th>
+                      <th>Address</th>
+                      <th>Status</th>
+                      <th>Last Seen</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colspan="6" class="loading-cell">Loading devices...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Device Health</h2>
+          </div>
+          
+          <div class="cards-container">
+            <div class="card">
+              <div class="card-header">
+                <h3>Status Distribution</h3>
+              </div>
+              <div class="card-body">
+                <div class="chart-container" id="deviceStatusChart">
+                  <canvas id="deviceStatusCanvas" height="200"></canvas>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-header">
+                <h3>Protocol Distribution</h3>
+              </div>
+              <div class="card-body">
+                <div class="chart-container" id="protocolDistChart">
+                  <canvas id="protocolDistCanvas" height="200"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Data Section -->
+        <section id="data" class="content-section">
+          <div class="section-header">
+            <h1>Live Data</h1>
+          </div>
+          
+          <div class="section-actions">
+            <select id="deviceSelector">
+              <option value="">Select Device</option>
+            </select>
+            <select id="dataTypeSelector">
+              <option value="">All Data Types</option>
+              <option value="temperature">Temperature</option>
+              <option value="humidity">Humidity</option>
+              <option value="pressure">Pressure</option>
+              <option value="voltage">Voltage</option>
+              <option value="current">Current</option>
+            </select>
+            <select id="timeRange">
+              <option value="1m">Last Minute</option>
+              <option value="5m">Last 5 Minutes</option>
+              <option value="15m">Last 15 Minutes</option>
+              <option value="1h">Last Hour</option>
+              <option value="6h">Last 6 Hours</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+            </select>
+            <button id="refreshData" class="btn-refresh"><i class="fas fa-sync-alt"></i></button>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Real-Time Data</h3>
+              <div class="chart-type-selector">
+                <button class="chart-type-btn active" data-type="line"><i class="fas fa-chart-line"></i></button>
+                <button class="chart-type-btn" data-type="bar"><i class="fas fa-chart-bar"></i></button>
+                <button class="chart-type-btn" data-type="area"><i class="fas fa-chart-area"></i></button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="dataChart" class="chart-container">
+                <canvas id="liveDataCanvas" height="300"></canvas>
+                <div class="no-data-message">Select a device to view data</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Historical Data</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Data Table</h3>
+              <button class="btn-secondary" id="exportDataBtn"><i class="fas fa-download"></i> Export</button>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="dataTable">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Device</th>
+                      <th>Data Type</th>
+                      <th>Value</th>
+                      <th>Unit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colspan="5" class="no-data-cell">No data available</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Multi-Parameter Comparison</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Parameter Correlation</h3>
+              <div class="card-actions">
+                <select id="param1Selector">
+                  <option value="">Parameter 1</option>
+                  <option value="temperature">Temperature</option>
+                  <option value="humidity">Humidity</option>
+                  <option value="pressure">Pressure</option>
+                  <option value="voltage">Voltage</option>
+                  <option value="current">Current</option>
+                </select>
+                <select id="param2Selector">
+                  <option value="">Parameter 2</option>
+                  <option value="temperature">Temperature</option>
+                  <option value="humidity">Humidity</option>
+                  <option value="pressure">Pressure</option>
+                  <option value="voltage">Voltage</option>
+                  <option value="current">Current</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="chart-container" id="correlationChart">
+                <canvas id="correlationCanvas" height="300"></canvas>
+                <div class="no-data-message">Select parameters to compare</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Alerts Section -->
+        <section id="alerts" class="content-section">
+          <div class="section-header">
+            <h1>Alerts</h1>
+          </div>
+          
+          <div class="section-actions">
+            <button id="addAlertBtn" class="btn-primary"><i class="fas fa-plus"></i> Add Alert</button>
+            <select id="alertFilter">
+              <option value="all">All Alerts</option>
+              <option value="active">Active</option>
+              <option value="resolved">Resolved</option>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Active Alerts</h3>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="alertsTable">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Device</th>
+                      <th>Type</th>
+                      <th>Severity</th>
+                      <th>Message</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colspan="6" class="no-data-cell">No active alerts</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Alert Configuration</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Threshold Settings</h3>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="thresholdsTable">
+                  <thead>
+                    <tr>
+                      <th>Device</th>
+                      <th>Parameter</th>
+                      <th>Condition</th>
+                      <th>Threshold</th>
+                      <th>Severity</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colspan="6" class="no-data-cell">No thresholds configured</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Notification Settings</h3>
+            </div>
+            <div class="card-body">
+              <form id="notificationForm">
+                <div class="form-group">
+                  <label for="emailNotifications">Email Notifications</label>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="emailNotifications" checked>
+                    <span class="toggle-slider"></span>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="emailRecipients">Email Recipients</label>
+                  <input type="text" id="emailRecipients" placeholder="admin@example.com, user@example.com">
+                </div>
+                
+                <div class="form-group">
+                  <label for="smsNotifications">SMS Notifications</label>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="smsNotifications">
+                    <span class="toggle-slider"></span>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="smsRecipients">SMS Recipients</label>
+                  <input type="text" id="smsRecipients" placeholder="+1234567890, +0987654321">
+                </div>
+                
+                <button type="submit" class="btn-primary">Save Notification Settings</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- Reports Section -->
+        <section id="reports" class="content-section">
+          <div class="section-header">
+            <h1>Reports</h1>
+          </div>
+          
+          <div class="section-actions">
+            <button id="generateReportBtn" class="btn-primary"><i class="fas fa-file-export"></i> Generate Report</button>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Report Generator</h3>
+            </div>
+            <div class="card-body">
+              <form id="reportForm">
+                <div class="form-group">
+                  <label for="reportType">Report Type</label>
+                  <select id="reportType">
+                    <option value="device_summary">Device Summary</option>
+                    <option value="data_analysis">Data Analysis</option>
+                    <option value="alert_history">Alert History</option>
+                    <option value="system_performance">System Performance</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="reportDevice">Device (Optional)</label>
+                  <select id="reportDevice">
+                    <option value="">All Devices</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="reportStartDate">Start Date</label>
+                  <input type="date" id="reportStartDate">
+                </div>
+                
+                <div class="form-group">
+                  <label for="reportEndDate">End Date</label>
+                  <input type="date" id="reportEndDate">
+                </div>
+                
+                <div class="form-group">
+                  <label for="reportFormat">Format</label>
+                  <select id="reportFormat">
+                    <option value="pdf">PDF</option>
+                    <option value="csv">CSV</option>
+                    <option value="excel">Excel</option>
+                    <option value="json">JSON</option>
+                  </select>
+                </div>
+                
+                <button type="submit" class="btn-primary">Generate</button>
+              </form>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Recent Reports</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-body">
+              <div class="table-container">
+                <table id="reportsTable">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Generated By</th>
+                      <th>Format</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colspan="5" class="no-data-cell">No reports generated</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Servers Section -->
+        <section id="servers" class="content-section">
+          <div class="section-header">
+            <h1>Servers</h1>
+          </div>
+          
+          <div class="section-actions">
+            <button id="addServerBtn" class="btn-primary"><i class="fas fa-plus"></i> Add Server</button>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Server List</h3>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table id="serversTable">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Host</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colspan="5" class="loading-cell">Loading servers...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Database Management</h2>
+          </div>
+          
+          <div class="cards-container">
+            <div class="card">
+              <div class="card-header">
+                <h3>MongoDB</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label for="mongoQuery">MongoDB Query</label>
+                  <textarea id="mongoQuery" rows="3" placeholder="db.devices.find({})"></textarea>
+                </div>
+                <button id="runMongoQuery" class="btn-primary">Run Query</button>
+                <div id="mongoQueryResult" class="query-result">
+                  <div class="no-data-message">Query results will appear here</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-header">
+                <h3>InfluxDB</h3>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label for="influxQuery">InfluxDB Query</label>
+                  <textarea id="influxQuery" rows="3" placeholder="from(bucket:\"device_metrics\") |> range(start: -1h)"></textarea>
+                </div>
+                <button id="runInfluxQuery" class="btn-primary">Run Query</button>
+                <div id="influxQueryResult" class="query-result">
+                  <div class="no-data-message">Query results will appear here</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Logs Section -->
+        <section id="logs" class="content-section">
+          <div class="section-header">
+            <h1>Logs</h1>
+          </div>
+          
+          <div class="section-actions">
+            <select id="logTypeFilter">
+              <option value="all">All Logs</option>
+              <option value="system">System</option>
+              <option value="device">Device</option>
+              <option value="user">User</option>
+              <option value="error">Errors</option>
+            </select>
+            <input type="text" id="logSearch" placeholder="Search logs...">
+            <button id="clearLogs" class="btn-danger"><i class="fas fa-trash"></i> Clear</button>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>System Logs</h3>
+            </div>
+            <div class="card-body">
+              <div class="log-container" id="systemLogs">
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:45:23</span>
+                  <span class="log-level info">INFO</span>
+                  <span class="log-message">System started successfully</span>
+                </div>
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:45:24</span>
+                  <span class="log-level info">INFO</span>
+                  <span class="log-message">Connected to MongoDB</span>
+                </div>
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:45:25</span>
+                  <span class="log-level info">INFO</span>
+                  <span class="log-message">Connected to InfluxDB</span>
+                </div>
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:46:01</span>
+                  <span class="log-level warning">WARNING</span>
+                  <span class="log-message">Device 'Sensor-01' connection timeout</span>
+                </div>
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:47:15</span>
+                  <span class="log-level error">ERROR</span>
+                  <span class="log-message">Failed to connect to device 'Sensor-02'</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Protocol-Specific Logs</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Communication Logs</h3>
+              <select id="protocolLogFilter">
+                <option value="all">All Protocols</option>
+                <option value="modbus">Modbus</option>
+                <option value="canbus">CAN Bus</option>
+                <option value="mqtt">MQTT</option>
+                <option value="http">HTTP</option>
+              </select>
+            </div>
+            <div class="card-body">
+              <div class="log-container" id="protocolLogs">
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:45:30</span>
+                  <span class="log-protocol">MODBUS</span>
+                  <span class="log-message">Read holding registers: device=Sensor-01, address=40001, count=10</span>
+                </div>
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:45:35</span>
+                  <span class="log-protocol">CAN</span>
+                  <span class="log-message">Received frame: ID=0x123, DLC=8, Data=0x01 0x02 0x03 0x04 0x05 0x06 0x07 0x08</span>
+                </div>
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:45:40</span>
+                  <span class="log-protocol">MQTT</span>
+                  <span class="log-message">Subscribed to topic: devices/sensor-03/data</span>
+                </div>
+                <div class="log-entry">
+                  <span class="log-time">2025-04-03 09:45:45</span>
+                  <span class="log-protocol">HTTP</span>
+                  <span class="log-message">GET request: /api/devices/status, Response: 200 OK</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="content-section">
+          <div class="section-header">
+            <h1>Settings</h1>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Application Settings</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>General Settings</h3>
+            </div>
+            <div class="card-body">
+              <form id="settingsForm">
+                <div class="form-group">
+                  <label for="theme">Theme</label>
+                  <select id="theme" name="theme">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="system">System Default</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="refreshRate">Data Refresh Rate</label>
+                  <select id="refreshRate" name="refreshRate">
+                    <option value="1000">1 second</option>
+                    <option value="5000">5 seconds</option>
+                    <option value="10000" selected>10 seconds</option>
+                    <option value="30000">30 seconds</option>
+                    <option value="60000">1 minute</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="dateFormat">Date Format</label>
+                  <select id="dateFormat" name="dateFormat">
+                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="timeFormat">Time Format</label>
+                  <select id="timeFormat" name="timeFormat">
+                    <option value="12">12-hour (AM/PM)</option>
+                    <option value="24">24-hour</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="language">Language</label>
+                  <select id="language" name="language">
+                    <option value="en">English</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="es">Spanish</option>
+                  </select>
+                </div>
+                
+                <button type="submit" class="btn-primary">Save Settings</button>
+              </form>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Communication Protocols</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Protocol Settings</h3>
+            </div>
+            <div class="card-body">
+              <div class="tabs">
+                <div class="tab-header">
+                  <div class="tab-item active" data-tab="modbus">Modbus</div>
+                  <div class="tab-item" data-tab="canbus">CAN Bus</div>
+                  <div class="tab-item" data-tab="mqtt">MQTT</div>
+                  <div class="tab-item" data-tab="i2c">I²C</div>
+                  <div class="tab-item" data-tab="spi">SPI</div>
+                  <div class="tab-item" data-tab="other">Other</div>
+                </div>
+                <div class="tab-content">
+                  <div class="tab-pane active" id="modbus-tab">
+                    <form id="modbusSettingsForm">
+                      <div class="form-group">
+                        <label for="modbusMode">Mode</label>
+                        <select id="modbusMode" name="modbusMode">
+                          <option value="rtu">RTU</option>
+                          <option value="tcp">TCP</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="modbusBaudRate">Baud Rate (RTU)</label>
+                        <select id="modbusBaudRate" name="modbusBaudRate">
+                          <option value="9600">9600</option>
+                          <option value="19200">19200</option>
+                          <option value="38400">38400</option>
+                          <option value="57600">57600</option>
+                          <option value="115200">115200</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="modbusParity">Parity (RTU)</label>
+                        <select id="modbusParity" name="modbusParity">
+                          <option value="none">None</option>
+                          <option value="even">Even</option>
+                          <option value="odd">Odd</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="modbusStopBits">Stop Bits (RTU)</label>
+                        <select id="modbusStopBits" name="modbusStopBits">
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="modbusTimeout">Timeout (ms)</label>
+                        <input type="number" id="modbusTimeout" name="modbusTimeout" value="1000">
+                      </div>
+                      
+                      <button type="submit" class="btn-primary">Save Modbus Settings</button>
+                    </form>
+                  </div>
+                  <div class="tab-pane" id="canbus-tab">
+                    <form id="canbusSettingsForm">
+                      <div class="form-group">
+                        <label for="canInterface">Interface</label>
+                        <select id="canInterface" name="canInterface">
+                          <option value="can0">can0</option>
+                          <option value="can1">can1</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="canBitrate">Bitrate</label>
+                        <select id="canBitrate" name="canBitrate">
+                          <option value="125000">125 kbit/s</option>
+                          <option value="250000">250 kbit/s</option>
+                          <option value="500000">500 kbit/s</option>
+                          <option value="1000000">1 Mbit/s</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="canMode">Mode</label>
+                        <select id="canMode" name="canMode">
+                          <option value="normal">Normal</option>
+                          <option value="loopback">Loopback</option>
+                          <option value="listen-only">Listen Only</option>
+                        </select>
+                      </div>
+                      
+                      <button type="submit" class="btn-primary">Save CAN Settings</button>
+                    </form>
+                  </div>
+                  <div class="tab-pane" id="mqtt-tab">
+                    <form id="mqttSettingsForm">
+                      <div class="form-group">
+                        <label for="mqttBroker">Broker URL</label>
+                        <input type="text" id="mqttBroker" name="mqttBroker" value="mqtt://localhost:1883">
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="mqttUsername">Username</label>
+                        <input type="text" id="mqttUsername" name="mqttUsername">
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="mqttPassword">Password</label>
+                        <input type="password" id="mqttPassword" name="mqttPassword">
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="mqttClientId">Client ID</label>
+                        <input type="text" id="mqttClientId" name="mqttClientId" value="device-monitor">
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="mqttQoS">Quality of Service</label>
+                        <select id="mqttQoS" name="mqttQoS">
+                          <option value="0">0 - At most once</option>
+                          <option value="1">1 - At least once</option>
+                          <option value="2">2 - Exactly once</option>
+                        </select>
+                      </div>
+                      
+                      <button type="submit" class="btn-primary">Save MQTT Settings</button>
+                    </form>
+                  </div>
+                  <div class="tab-pane" id="i2c-tab">
+                    <form id="i2cSettingsForm">
+                      <div class="form-group">
+                        <label for="i2cBus">I²C Bus</label>
+                        <select id="i2cBus" name="i2cBus">
+                          <option value="/dev/i2c-1">/dev/i2c-1</option>
+                          <option value="/dev/i2c-0">/dev/i2c-0</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="i2cScanEnabled">Auto-Scan for Devices</label>
+                        <div class="toggle-switch">
+                          <input type="checkbox" id="i2cScanEnabled" checked>
+                          <span class="toggle-slider"></span>
+                        </div>
+                      </div>
+                      
+                      <button type="submit" class="btn-primary">Save I²C Settings</button>
+                    </form>
+                  </div>
+                  <div class="tab-pane" id="spi-tab">
+                    <form id="spiSettingsForm">
+                      <div class="form-group">
+                        <label for="spiDevice">SPI Device</label>
+                        <select id="spiDevice" name="spiDevice">
+                          <option value="/dev/spidev0.0">/dev/spidev0.0</option>
+                          <option value="/dev/spidev0.1">/dev/spidev0.1</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="spiMode">SPI Mode</label>
+                        <select id="spiMode" name="spiMode">
+                          <option value="0">Mode 0 (CPOL=0, CPHA=0)</option>
+                          <option value="1">Mode 1 (CPOL=0, CPHA=1)</option>
+                          <option value="2">Mode 2 (CPOL=1, CPHA=0)</option>
+                          <option value="3">Mode 3 (CPOL=1, CPHA=1)</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="spiSpeed">Speed (Hz)</label>
+                        <input type="number" id="spiSpeed" name="spiSpeed" value="1000000">
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="spiBitsPerWord">Bits per Word</label>
+                        <select id="spiBitsPerWord" name="spiBitsPerWord">
+                          <option value="8">8</option>
+                          <option value="16">16</option>
+                        </select>
+                      </div>
+                      
+                      <button type="submit" class="btn-primary">Save SPI Settings</button>
+                    </form>
+                  </div>
+                  <div class="tab-pane" id="other-tab">
+                    <div class="protocol-list">
+                      <div class="protocol-item">
+                        <span class="protocol-name">UART</span>
+                        <button class="btn-secondary btn-sm">Configure</button>
+                      </div>
+                      <div class="protocol-item">
+                        <span class="protocol-name">PROFIBUS</span>
+                        <button class="btn-secondary btn-sm">Configure</button>
+                      </div>
+                      <div class="protocol-item">
+                        <span class="protocol-name">DeviceNet</span>
+                        <button class="btn-secondary btn-sm">Configure</button>
+                      </div>
+                      <div class="protocol-item">
+                        <span class="protocol-name">Ethernet/IP</span>
+                        <button class="btn-secondary btn-sm">Configure</button>
+                      </div>
+                      <div class="protocol-item">
+                        <span class="protocol-name">Modbus TCP</span>
+                        <button class="btn-secondary btn-sm">Configure</button>
+                      </div>
+                      <div class="protocol-item">
+                        <span class="protocol-name">PROFINET</span>
+                        <button class="btn-secondary btn-sm">Configure</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>Database Configuration</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>MongoDB Settings</h3>
+            </div>
+            <div class="card-body">
+              <form id="mongodbSettingsForm">
+                <div class="form-group">
+                  <label for="mongoHost">Host</label>
+                  <input type="text" id="mongoHost" name="mongoHost" value="localhost">
+                </div>
+                
+                <div class="form-group">
+                  <label for="mongoPort">Port</label>
+                  <input type="number" id="mongoPort" name="mongoPort" value="27017">
+                </div>
+                
+                <div class="form-group">
+                  <label for="mongoDatabase">Database</label>
+                  <input type="text" id="mongoDatabase" name="mongoDatabase" value="deviceMonitor">
+                </div>
+                
+                <div class="form-group">
+                  <label for="mongoUsername">Username</label>
+                  <input type="text" id="mongoUsername" name="mongoUsername">
+                </div>
+                
+                <div class="form-group">
+                  <label for="mongoPassword">Password</label>
+                  <input type="password" id="mongoPassword" name="mongoPassword">
+                </div>
+                
+                <button type="submit" class="btn-primary">Save MongoDB Settings</button>
+                <button type="button" class="btn-secondary" id="testMongoConnection">Test Connection</button>
+              </form>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>InfluxDB Settings</h3>
+            </div>
+            <div class="card-body">
+              <form id="influxdbSettingsForm">
+                <div class="form-group">
+                  <label for="influxUrl">URL</label>
+                  <input type="text" id="influxUrl" name="influxUrl" value="http://localhost:8086">
+                </div>
+                
+                <div class="form-group">
+                  <label for="influxToken">Token</label>
+                  <input type="text" id="influxToken" name="influxToken">
+                </div>
+                
+                <div class="form-group">
+                  <label for="influxOrg">Organization</label>
+                  <input type="text" id="influxOrg" name="influxOrg">
+                </div>
+                
+                <div class="form-group">
+                  <label for="influxBucket">Bucket</label>
+                  <input type="text" id="influxBucket" name="influxBucket" value="device_metrics">
+                </div>
+                
+                <div class="form-group">
+                  <label for="influxRetention">Retention Policy (days)</label>
+                  <input type="number" id="influxRetention" name="influxRetention" value="30">
+                </div>
+                
+                <button type="submit" class="btn-primary">Save InfluxDB Settings</button>
+                <button type="button" class="btn-secondary" id="testInfluxConnection">Test Connection</button>
+              </form>
+            </div>
+          </div>
+          
+          <div class="section-subheader">
+            <h2>User Profile</h2>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <h3>Change Password</h3>
+            </div>
+            <div class="card-body">
+              <form id="profileForm">
+                <div class="form-group">
+                  <label for="currentPassword">Current Password</label>
+                  <input type="password" id="currentPassword" name="currentPassword">
+                </div>
+                
+                <div class="form-group">
+                  <label for="newPassword">New Password</label>
+                  <input type="password" id="newPassword" name="newPassword">
+                </div>
+                
+                <div class="form-group">
+                  <label for="confirmPassword">Confirm New Password</label>
+                  <input type="password" id="confirmPassword" name="confirmPassword">
+                </div>
+                
+                <button type="submit" class="btn-primary">Update Password</button>
+              </form>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Templates -->
+  <div id="modalContainer" class="modal-container">
+    <!-- Add Device Modal -->
+    <div id="addDeviceModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Add New Device</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="addDeviceForm">
+            <div class="form-group">
+              <label for="deviceName">Device Name</label>
+              <input type="text" id="deviceName" name="name" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="deviceProtocol">Protocol</label>
+              <select id="deviceProtocol" name="protocol" required>
+                <option value="">Select Protocol</option>
+                <option value="modbus">Modbus</option>
+                <option value="canbus">CAN Bus</option>
+                <option value="mqtt">MQTT</option>
+                <option value="http">HTTP</option>
+                <option value="i2c">I²C</option>
+                <option value="spi">SPI</option>
+                <option value="uart">UART</option>
+                <option value="profibus">PROFIBUS</option>
+                <option value="ethernetip">Ethernet/IP</option>
+                <option value="opcua">OPC UA</option>
+                <option value="bacnet">BACnet</option>
+                <option value="zigbee">Zigbee</option>
+                <option value="bluetooth">Bluetooth</option>
+                <option value="lorawan">LoRaWAN</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="deviceAddress">Address</label>
+              <input type="text" id="deviceAddress" name="address" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="devicePort">Port</label>
+              <input type="number" id="devicePort" name="port">
+            </div>
+            
+            <div class="form-group">
+              <label>Data Types</label>
+              <div class="checkbox-group">
+                <label>
+                  <input type="checkbox" name="dataTypes" value="temperature"> Temperature
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="humidity"> Humidity
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="pressure"> Pressure
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="voltage"> Voltage
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="current"> Current
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="flow"> Flow
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="level"> Level
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="speed"> Speed
+                </label>
+                <label>
+                  <input type="checkbox" name="dataTypes" value="position"> Position
+                </label>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label>Data Sizes</label>
+              <div class="checkbox-group">
+                <label>
+                  <input type="checkbox" name="dataSizes" value="1"> 1 byte
+                </label>
+                <label>
+                  <input type="checkbox" name="dataSizes" value="2"> 2 bytes
+                </label>
+                <label>
+                  <input type="checkbox" name="dataSizes" value="4"> 4 bytes
+                </label>
+                <label>
+                  <input type="checkbox" name="dataSizes" value="8"> 8 bytes
+                </label>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="deviceConfig">Additional Configuration (JSON)</label>
+              <textarea id="deviceConfig" name="config" rows="4" placeholder='{"scanRate": 1000, "timeout": 500}'></textarea>
+            </div>
+            
+            <div class="modal-actions">
+              <button type="button" class="btn-secondary modal-cancel">Cancel</button>
+              <button type="submit" class="btn-primary">Add Device</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Add Server Modal -->
+    <div id="addServerModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Add External Server</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="addServerForm">
+            <div class="form-group">
+              <label for="serverName">Server Name</label>
+              <input type="text" id="serverName" name="name" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="serverType">Type</label>
+              <select id="serverType" name="type" required>
+                <option value="">Select Type</option>
+                <option value="mongodb">MongoDB</option>
+                <option value="influxdb">InfluxDB</option>
+                <option value="mqtt">MQTT Broker</option>
+                <option value="http">HTTP API</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="serverHost">Host</label>
+              <input type="text" id="serverHost" name="host" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="serverPort">Port</label>
+              <input type="number" id="serverPort" name="port" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="serverUsername">Username</label>
+              <input type="text" id="serverUsername" name="username">
+            </div>
+            
+            <div class="form-group">
+              <label for="serverPassword">Password</label>
+              <input type="password" id="serverPassword" name="password">
+            </div>
+            
+            <div class="form-group">
+              <label for="serverDatabase">Database</label>
+              <input type="text" id="serverDatabase" name="database">
+            </div>
+            
+            <div class="form-group server-mqtt-options">
+              <label for="serverTopic">Topic</label>
+              <input type="text" id="serverTopic" name="topic">
+            </div>
+            
+            <div class="form-group server-http-options">
+              <label for="serverEndpoint">Endpoint</label>
+              <input type="text" id="serverEndpoint" name="endpoint">
+            </div>
+            
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="serverEnabled" name="enabled" checked>
+                Enabled
+              </label>
+            </div>
+            
+            <div class="modal-actions">
+              <button type="button" class="btn-secondary modal-cancel">Cancel</button>
+              <button type="submit" class="btn-primary">Add Server</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Add Alert Modal -->
+    <div id="addAlertModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Add Alert</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="addAlertForm">
+            <div class="form-group">
+              <label for="alertDevice">Device</label>
+              <select id="alertDevice" name="deviceId" required>
+                <option value="">Select Device</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="alertParameter">Parameter</label>
+              <select id="alertParameter" name="parameter" required>
+                <option value="">Select Parameter</option>
+                <option value="temperature">Temperature</option>
+                <option value="humidity">Humidity</option>
+                <option value="pressure">Pressure</option>
+                <option value="voltage">Voltage</option>
+                <option value="current">Current</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="alertCondition">Condition</label>
+              <select id="alertCondition" name="condition" required>
+                <option value="gt">Greater Than</option>
+                <option value="lt">Less Than</option>
+                <option value="eq">Equal To</option>
+                <option value="neq">Not Equal To</option>
+                <option value="gte">Greater Than or Equal To</option>
+                <option value="lte">Less Than or Equal To</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="alertThreshold">Threshold</label>
+              <input type="number" id="alertThreshold" name="threshold" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="alertSeverity">Severity</label>
+              <select id="alertSeverity" name="severity" required>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="alertMessage">Message</label>
+              <textarea id="alertMessage" name="message" rows="3" required></textarea>
+            </div>
+            
+            <div class="modal-actions">
+              <button type="button" class="btn-secondary modal-cancel">Cancel</button>
+              <button type="submit" class="btn-primary">Add Alert</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  
+  <!-- Load our JavaScript -->
+  <script src="js/dashboard.js?v=1.0.3"></script>
+  
+  <script>
+    // Debug script to check if JavaScript is running
+    console.log("Dashboard HTML loaded");
+    
+    // Check if navigation items exist
+    console.log("Nav items:", document.querySelectorAll(".sidebar-nav .nav-item").length);
+    
+    // Check if logout button exists
+    console.log("Logout button:", document.getElementById("logoutBtn") ? "Found" : "Not found");
+    
+    // Add direct event listeners as a fallback
+    document.querySelectorAll(".sidebar-nav .nav-item").forEach(function(item) {
+      item.addEventListener("click", function(e) {
+        console.log("Nav item clicked from inline script:", this.getAttribute("data-section"));
+        e.preventDefault();
+        
+        // Remove active class from all items
+        document.querySelectorAll(".sidebar-nav .nav-item").forEach(function(i) {
+          i.classList.remove("active");
+        });
+        
+        // Remove active class from all sections
+        document.querySelectorAll(".content-section").forEach(function(s) {
+          s.classList.remove("active");
+        });
+        
+        // Add active class to clicked item
+        this.classList.add("active");
+        
+        // Show corresponding section
+        const sectionId = this.getAttribute("data-section");
+        const section = document.getElementById(sectionId);
+        if (section) {
+          section.classList.add("active");
+        }
+      });
+    });
+    
+    // Add direct event listener for logout as a fallback
+    document.getElementById("logoutBtn")?.addEventListener("click", function() {
+      console.log("Logout clicked from inline script");
+      window.location.href = "/";
+    });
+  </script>
+</body>
+</html>
+

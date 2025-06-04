@@ -10,7 +10,8 @@ sudo apt install influxdb2
 sudo systemctl unmask influxdb
 sudo systemctl enable influxdb
 sudo systemctl start influxdb
-OfSyfnvJ0Dh0Mx2Nqh_PGNvyDHwMBAPnefLCTtQyMp7Hh6d2B7-1YvjiZHY6ddn_PX0BxFhQQ5PcqwkMnJjgqg==
+
+
 
 ##############################[Node JS Runtime ]#############################
 
@@ -37,8 +38,8 @@ sudo apt install ufw
 sudo ufw allow 'Nginx Full'
 sudo ufw enable
 
-/var/www/html
-/etc/nginx/sites-available/default
+
+1XlVsaw2ko-fG0TGccLNKi3IfQ6tst9zMGglcUQCMrnJ-5--KkxpxLIWIWtYH8XbSWTyTxQSI32Bv9zByKr_ag==
 
 ################################[Mongo Database]###########################
 
@@ -73,8 +74,9 @@ node-red-pi --max-old-space-size=256
 # 6. (Optional) Enable autostart on boot
 sudo systemctl enable nodered.service
 ##################################[ WebMin Server Monitoring tool]##############
+sudo apt install libhtml-parser-perl
 sudo apt install perl libnet-ssleay-perl openssl libauthen-pam-perl libpam-runtime libio-pty-perl apt-show-versions python unzip
-sudo nano /etc/apt/sources.list
+#sudo nano /etc/apt/sources.list
 deb https://download.webmin.com/download/repository sarge contrib
 wget https://download.webmin.com/jcameron-key.asc
 sudo apt-key add jcameron-key.asc
