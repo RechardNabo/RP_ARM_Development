@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Wifi, Bluetooth, NetworkIcon, Cpu, Thermometer, Gauge } from "lucide-react"
 

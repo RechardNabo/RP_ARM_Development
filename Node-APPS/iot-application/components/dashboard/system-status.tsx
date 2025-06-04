@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive } from "lucide-react"
@@ -81,8 +83,8 @@ export function SystemStatus() {
   }, [])
 
   // Calculate percentages
-  const memoryUsagePercent = metrics ? (metrics.memory.used / metrics.memory.total) * 100 : 0
-  const storageUsagePercent = metrics ? (metrics.storage.used / metrics.storage.total) * 100 : 0
+  const memoryUsagePercent = metrics?.memory?.used && metrics?.memory?.total ? (metrics.memory.used / metrics.memory.total) * 100 : 0
+  const storageUsagePercent = metrics?.storage?.used && metrics?.storage?.total ? (metrics.storage.used / metrics.storage.total) * 100 : 0
   
   // Format values for display
   const formatGB = (mb: number) => (mb / 1024).toFixed(1)
@@ -131,9 +133,9 @@ export function SystemStatus() {
                   <Cpu className="h-4 w-4 text-blue-500" />
                   <span className="text-sm font-medium">CPU Usage</span>
                 </div>
-                <span className="text-sm">{metrics?.cpu.usage.toFixed(1)}%</span>
+                <span className="text-sm">{metrics?.cpu?.usage?.toFixed(1) ?? '0.0'}%</span>
               </div>
-              <Progress value={metrics?.cpu.usage} className="h-2" />
+              <Progress value={metrics?.cpu?.usage ?? 0} className="h-2" />
             </div>
 
             <div className="space-y-2">
@@ -143,7 +145,7 @@ export function SystemStatus() {
                   <span className="text-sm font-medium">Memory</span>
                 </div>
                 <span className="text-sm">
-                  {formatGB(metrics?.memory.used || 0)} GB / {formatGB(metrics?.memory.total || 0)} GB
+                  {formatGB(metrics?.memory?.used ?? 0)} GB / {formatGB(metrics?.memory?.total ?? 0)} GB
                 </span>
               </div>
               <Progress value={memoryUsagePercent} className="h-2" />
@@ -156,7 +158,7 @@ export function SystemStatus() {
                   <span className="text-sm font-medium">Storage</span>
                 </div>
                 <span className="text-sm">
-                  {formatGB(metrics?.storage.used || 0)} GB / {formatGB(metrics?.storage.total || 0)} GB
+                  {formatGB(metrics?.storage?.used ?? 0)} GB / {formatGB(metrics?.storage?.total ?? 0)} GB
                 </span>
               </div>
               <Progress value={storageUsagePercent} className="h-2" />
@@ -168,9 +170,9 @@ export function SystemStatus() {
                   <Thermometer className="h-4 w-4 text-red-500" />
                   <span className="text-sm font-medium">Temperature</span>
                 </div>
-                <span className="text-sm">{metrics?.temperature.cpu.toFixed(1)}°C</span>
+                <span className="text-sm">{metrics?.temperature?.cpu?.toFixed(1) ?? '0.0'}°C</span>
               </div>
-              <Progress value={metrics?.temperature.cpu} className="h-2" />
+              <Progress value={metrics?.temperature?.cpu ?? 0} className="h-2" />
             </div>
 
             <div className="flex items-center justify-between pt-2">
@@ -179,11 +181,13 @@ export function SystemStatus() {
                 <span className="text-sm font-medium">Uptime</span>
               </div>
               <span className="text-sm">
-                {metrics ? formatUptime(
-                  metrics.uptime.days,
-                  metrics.uptime.hours,
-                  metrics.uptime.minutes
-                ) : '0d 0h 0m'}
+                {metrics?.uptime?.days !== undefined && metrics?.uptime?.hours !== undefined && metrics?.uptime?.minutes !== undefined 
+                  ? formatUptime(
+                      metrics.uptime.days,
+                      metrics.uptime.hours,
+                      metrics.uptime.minutes
+                    ) 
+                  : '0d 0h 0m'}
               </span>
             </div>
           </div>

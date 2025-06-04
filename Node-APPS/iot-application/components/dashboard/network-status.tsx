@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Wifi, NetworkIcon, Globe } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
