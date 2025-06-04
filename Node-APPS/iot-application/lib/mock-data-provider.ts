@@ -3,6 +3,20 @@
  * This file provides mock data for all MongoDB-dependent components
  */
 
+// Mock service statuses for preview environment
+export function getMockServicesStatus() {
+  return [
+    { name: "MongoDB", status: "Running", type: "database" },
+    { name: "InfluxDB", status: "Running", type: "database" },
+    { name: "Grafana", status: "Running", type: "monitoring" },
+    { name: "Nginx", status: "Running", type: "web" },
+    { name: "Webmin", status: "Running", type: "system" },
+    { name: "SPI", status: "Active", type: "interface" },
+    { name: "I2C", status: "Active", type: "interface" },
+    { name: "CAN0", status: "Active", type: "interface" },
+  ];
+}
+
 // Mock device data
 export const mockDevices = [
   {
