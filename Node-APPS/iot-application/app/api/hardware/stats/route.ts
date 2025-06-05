@@ -3,44 +3,71 @@ import { promisify } from 'util';
 import { NextResponse } from 'next/server';
 import { getHardwareManager } from '@/lib/hardware/hardware-manager';
 
+// Helper function to safely execute shell commands
+async function safeExec(command: string, defaultValue: any = null) {
+  try {
+    const execPromise = promisify(exec);
+    const { stdout } = await execPromise(command);
+    return stdout.trim();
+  } catch (error) {
+    console.error(`Error executing command: ${command}`, error);
+    return defaultValue;
+  }
+}
+
 export async function GET() {
   try {
     // Initialize hardware manager
     const hardwareManager = getHardwareManager();
     const hwStatus = await hardwareManager.getStatus();
     
-    // Create promisified exec
-    const execPromise = promisify(exec);
-    
     // Get CPU usage
-    const cpuInfoCmd = await execPromise("top -bn1 | grep '%Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'");
-    const cpuUsage = parseFloat(cpuInfoCmd.stdout.trim());
+    const cpuInfoStr = await safeExec("top -bn1 | grep '%Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'")
+    const cpuUsage = cpuInfoStr ? parseFloat(cpuInfoStr) : 0;
     
     // Get memory usage
-    const memInfoCmd = await execPromise("free -m | grep Mem");
-    const memParts = memInfoCmd.stdout.trim().split(/\\s+/);
-    const totalMem = parseInt(memParts[1]);
-    const usedMem = totalMem - parseInt(memParts[6]); // Free memory
-    const usedMemGB = (usedMem / 1024).toFixed(1);
-    const totalMemGB = (totalMem / 1024).toFixed(1);
-    const memPercent = Math.round((usedMem / totalMem) * 100);
+    const memInfoStr = await safeExec("free -m | grep Mem");
+    let usedMemGB = '0';
+    let totalMemGB = '0';
+    let memPercent = 0;
+    
+    if (memInfoStr) {
+      const memParts = memInfoStr.split(/\s+/);
+      if (memParts.length >= 7) {
+        const totalMem = parseInt(memParts[1]) || 0;
+        const usedMem = totalMem - (parseInt(memParts[6]) || 0); 
+        usedMemGB = (usedMem / 1024).toFixed(1);
+        totalMemGB = (totalMem / 1024).toFixed(1);
+        memPercent = totalMem > 0 ? Math.round((usedMem / totalMem) * 100) : 0;
+      }
+    }
     
     // Get storage usage
-    const diskInfoCmd = await execPromise("df -h / | awk 'NR==2{print $3, $2, $5}'");
-    const [usedStorage, totalStorage, percentStorageStr] = diskInfoCmd.stdout.trim().split(/\\s+/);
-    const percentStorage = parseInt(percentStorageStr.replace('%', ''));
+    const diskInfoStr = await safeExec("df -h / | awk 'NR==2{print $3, $2, $5}'");
+    let usedStorage = '0';
+    let totalStorage = '0';
+    let percentStorage = 0;
+    
+    if (diskInfoStr) {
+      const diskParts = diskInfoStr.split(/\s+/);
+      if (diskParts.length >= 3) {
+        usedStorage = diskParts[0] || '0';
+        totalStorage = diskParts[1] || '0';
+        const percentStr = diskParts[2] || '0%';
+        percentStorage = parseInt(percentStr.replace('%', '')) || 0;
+      }
+    }
     
     // Get CPU temperature
-    const tempInfoCmd = await execPromise("cat /sys/class/thermal/thermal_zone0/temp");
-    const tempC = parseInt(tempInfoCmd.stdout.trim()) / 1000;
+    const tempInfoStr = await safeExec("cat /sys/class/thermal/thermal_zone0/temp");
+    const tempC = tempInfoStr ? (parseInt(tempInfoStr) / 1000) : 0;
     
     // Get uptime
-    const uptimeInfoCmd = await execPromise("uptime -p");
-    const uptime = uptimeInfoCmd.stdout.trim().replace('up ', '');
+    const uptimeInfoStr = await safeExec("uptime -p", "up 0 minutes");
+    const uptime = uptimeInfoStr.replace('up ', '');
     
     // Get hardware model name
-    const modelInfoCmd = await execPromise("cat /proc/device-tree/model || echo 'Raspberry Pi'");
-    const modelName = modelInfoCmd.stdout.trim();
+    const modelName = await safeExec("cat /proc/device-tree/model || echo 'Raspberry Pi'", "Raspberry Pi");
 
     return NextResponse.json({
       cpuUsage,
@@ -57,10 +84,28 @@ export async function GET() {
       temperature: tempC,
       uptime,
       modelName,
-      hardware: hwStatus
+      hardware: hwStatus || {}
     });
   } catch (error) {
     console.error("Error fetching hardware stats:", error);
-    return NextResponse.json({ error: "Failed to fetch hardware stats" }, { status: 500 });
+    // Return fallback values in case of error
+    return NextResponse.json({
+      cpuUsage: 0,
+      memory: {
+        used: '0',
+        total: '0',
+        percent: 0
+      },
+      storage: {
+        used: '0',
+        total: '0',
+        percent: 0
+      },
+      temperature: 0,
+      uptime: '0 minutes',
+      modelName: 'Raspberry Pi',
+      hardware: {},
+      error: 'Failed to fetch hardware stats'
+    });
   }
 }
