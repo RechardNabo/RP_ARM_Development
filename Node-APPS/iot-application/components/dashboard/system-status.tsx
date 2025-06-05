@@ -3,9 +3,6 @@ import { Badge } from "@/components/ui/badge"
 import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { useEffect, useState } from "react"
-import { getHardwareManager } from "@/lib/hardware/hardware-manager"
-import { exec } from "child_process"
-import { promisify } from "util"
 
 export function SystemStatus() {
   const [systemHealth, setSystemHealth] = useState<'healthy' | 'warning' | 'critical'>('healthy')
@@ -16,67 +13,23 @@ export function SystemStatus() {
   const [uptime, setUptime] = useState<string>('0h 0m')
   const [hardwareStatus, setHardwareStatus] = useState<any>(null)
   
-  // Function to execute shell commands
-  const executeCommand = async (command: string) => {
-    try {
-      // In browser environment, use the hardware manager
-      if (typeof window !== 'undefined') {
-        return null
-      }
-      // In Node.js environment (server-side), execute the command
-      const execPromise = promisify(exec)
-      const { stdout } = await execPromise(command)
-      return stdout.trim()
-    } catch (error) {
-      console.error(`Error executing command: ${command}`, error)
-      return null
-    }
-  }
-
-  // Function to get system stats
+  // Function to get system stats via API endpoint
   const getSystemStats = async () => {
     try {
-      // Get hardware status from hardware manager
-      const hardwareManager = getHardwareManager()
-      const hwStatus = await hardwareManager.getStatus()
-      setHardwareStatus(hwStatus)
-
-      // Get CPU usage
-      const cpuInfo = await executeCommand("top -bn1 | grep '%Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'")
-      setCpuUsage(cpuInfo ? parseFloat(cpuInfo) : 0)
-
-      // Get memory usage
-      const memInfo = await executeCommand("free -m | grep Mem")
-      if (memInfo) {
-        const memParts = memInfo.split(/\s+/)
-        const total = parseInt(memParts[1])
-        const used = total - parseInt(memParts[6]) // Free memory
-        const usedGB = (used / 1024).toFixed(1)
-        const totalGB = (total / 1024).toFixed(1)
-        const percent = Math.round((used / total) * 100)
-        setMemoryUsage({ used: usedGB, total: totalGB, percent })
+      const response = await fetch('/api/hardware/stats');
+      if (!response.ok) {
+        throw new Error(`Error fetching hardware stats: ${response.statusText}`);
       }
-
-      // Get storage usage
-      const diskInfo = await executeCommand("df -h / | awk 'NR==2{print $3, $2, $5}'")
-      if (diskInfo) {
-        const [used, total, percentStr] = diskInfo.split(/\s+/)
-        const percent = parseInt(percentStr.replace('%', ''))
-        setStorageUsage({ used, total, percent })
-      }
-
-      // Get CPU temperature
-      const tempInfo = await executeCommand("cat /sys/class/thermal/thermal_zone0/temp")
-      if (tempInfo) {
-        const tempC = parseInt(tempInfo) / 1000
-        setTemperature(tempC)
-      }
-
-      // Get uptime
-      const uptimeInfo = await executeCommand("uptime -p")
-      if (uptimeInfo) {
-        setUptime(uptimeInfo.replace('up ', ''))
-      }
+      
+      const data = await response.json();
+      
+      // Update state with fetched data
+      setCpuUsage(data.cpuUsage);
+      setMemoryUsage(data.memory);
+      setStorageUsage(data.storage);
+      setTemperature(data.temperature);
+      setUptime(data.uptime);
+      setHardwareStatus({ modelName: data.modelName });
 
       // Set system health based on metrics
       if (cpuUsage > 90 || memoryUsage.percent > 90 || temperature > 75) {
