@@ -4,6 +4,7 @@ import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive } f
 import { Progress } from "@/components/ui/progress"
 import { useState, useEffect } from "react"
 import axios from "axios"
+import { cn } from "@/lib/utils"
 
 interface SystemMetrics {
   cpuUsage: number
@@ -84,15 +85,17 @@ export function SystemStatus() {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle>System Status</CardTitle>
-          {loading ? (
-            <Badge className="bg-gray-500">Loading...</Badge>
-          ) : error ? (
-            <Badge className="bg-red-500">Error</Badge>
-          ) : (
-            <Badge className={getBadgeColor()}>
-              {metrics.status === "healthy" ? "Healthy" : metrics.status === "warning" ? "Warning" : "Critical"}
-            </Badge>
-          )}
+          <div>
+            {loading ? (
+              <Badge>Loading...</Badge>
+            ) : error ? (
+              <Badge>Error</Badge>
+            ) : (
+              <Badge>
+                {metrics.status === "healthy" ? "Healthy" : metrics.status === "warning" ? "Warning" : "Critical"}
+              </Badge>
+            )}
+          </div>
         </div>
         <CardDescription>CM4-IO-WIRELESS-BASE with Raspberry Pi CM4</CardDescription>
       </CardHeader>

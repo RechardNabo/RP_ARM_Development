@@ -11,7 +11,6 @@ const nextConfig = {
   },
   // Optimize for Raspberry Pi with limited resources
   reactStrictMode: false,
-  swcMinify: true,
   poweredByHeader: false,
   compress: true,
   // Set output to standalone for better caching and reduced memory usage
