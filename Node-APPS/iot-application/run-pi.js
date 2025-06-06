@@ -1,14 +1,11 @@
 // Direct Server Launcher for Raspberry Pi
-// This bypasses Next.js build issues by running a simple Express server
+// Using only built-in Node.js modules (no dependencies)
 
-const express = require('express');
-const path = require('path');
+const http = require('http');
 const fs = require('fs');
 const { exec } = require('child_process');
 const os = require('os');
 
-// Create Express app
-const app = express();
 const PORT = 3001; // Fixed port 3001 as required
 
 // Import system metrics functions from existing API route
@@ -92,18 +89,48 @@ function execPromise(command) {
   });
 }
 
-// API endpoint for system metrics
-app.get('/api/system/metrics', async (req, res) => {
-  try {
-    const metrics = await getSystemMetrics();
-    res.json(metrics);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to get system metrics', message: error.message });
+// Simple CORS headers for API access
+function setCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+// Create HTTP server
+const server = http.createServer(async (req, res) => {
+  // Set CORS headers for all responses
+  setCorsHeaders(res);
+  
+  // Handle OPTIONS requests for CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
   }
+
+  // API endpoint for system metrics
+  if (req.url === '/api/system/metrics' && req.method === 'GET') {
+    try {
+      const metrics = await getSystemMetrics();
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(metrics));
+    } catch (error) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Failed to get system metrics', message: error.message }));
+    }
+    return;
+  }
+
+  // Default response for undefined routes
+  res.statusCode = 404;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify({ error: 'Not Found', message: 'Route not found' }));
 });
 
 // Start the server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log(`Network URL: http://${getLocalIP()}:${PORT}`);
 });
