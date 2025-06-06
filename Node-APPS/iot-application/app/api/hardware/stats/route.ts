@@ -69,6 +69,39 @@ export async function GET() {
     // Get hardware model name
     const modelName = await safeExec("cat /proc/device-tree/model || echo 'Raspberry Pi'", "Raspberry Pi");
 
+    // Get detailed service status info
+    const serviceStatus = {
+      can: hwStatus?.can ? {
+        initialized: hwStatus.can.initialized,
+        stats: hwStatus.can.stats || {}
+      } : { initialized: false, stats: {} },
+      wifi: hwStatus?.wifi ? {
+        initialized: hwStatus.wifi.initialized,
+        status: hwStatus.wifi.status || {}
+      } : { initialized: false, status: {} },
+      database: {
+        mongodb: hwStatus?.mongodb?.connected || false,
+        influxdb: hwStatus?.influxdb?.connected || false
+      },
+      services: {
+        grafana: hwStatus?.grafana?.connected || false
+      }
+    };
+    
+    // Try to get running system services
+    const systemServicesStr = await safeExec("systemctl list-units --type=service --state=running --no-pager | grep -v inactive | head -10 | awk '{print $1, $3, $4}'");
+    const systemServices = systemServicesStr ? 
+      systemServicesStr.split('\n')
+        .filter((line: string) => line.trim().length > 0)
+        .map((line: string) => {
+          const parts = line.split(/\s+/);
+          return {
+            name: parts[0] || '',
+            status: parts.length > 1 ? parts[1] : 'unknown',
+            description: parts.slice(2).join(' ') || ''
+          };
+        }) : [];
+    
     return NextResponse.json({
       cpuUsage,
       memory: {
@@ -84,7 +117,9 @@ export async function GET() {
       temperature: tempC,
       uptime,
       modelName,
-      hardware: hwStatus || {}
+      hardware: hwStatus || {},
+      services: serviceStatus,
+      systemServices
     });
   } catch (error) {
     console.error("Error fetching hardware stats:", error);
@@ -105,6 +140,13 @@ export async function GET() {
       uptime: '0 minutes',
       modelName: 'Raspberry Pi',
       hardware: {},
+      services: {
+        can: { initialized: false, stats: {} },
+        wifi: { initialized: false, status: {} },
+        database: { mongodb: false, influxdb: false },
+        services: { grafana: false }
+      },
+      systemServices: [],
       error: 'Failed to fetch hardware stats'
     });
   }
