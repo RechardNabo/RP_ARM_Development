@@ -13,12 +13,12 @@ const nextConfig = {
   reactStrictMode: false,
   poweredByHeader: false,
   compress: true,
-  // Set output to standalone for better caching and reduced memory usage
   output: 'standalone',
-  // Use only supported experimental features
+  distDir: '.next',
+  // Raspberry Pi-specific optimizations
   experimental: {
-    // Enable optimization features for ARM processors
     optimizeCss: true,
+    legacyBrowsers: true,
   },
 }
 
