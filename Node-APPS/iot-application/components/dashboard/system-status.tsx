@@ -2,9 +2,28 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive } from "lucide-react"
+import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive, Wifi, Database, Server } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { useEffect, useState } from "react"
+import React from "react"
+
+// Fix types by declaring badge props interface
+interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: "default" | "secondary" | "destructive" | "outline"
+}
+
+interface SystemService {
+  name: string;
+  status: string;
+  description: string;
+}
+
+interface ServiceStatus {
+  can: { initialized: boolean, stats: any };
+  wifi: { initialized: boolean, status: any };
+  database: { mongodb: boolean, influxdb: boolean };
+  services: { grafana: boolean };
+}
 
 export function SystemStatus() {
   const [systemHealth, setSystemHealth] = useState<'healthy' | 'warning' | 'critical'>('healthy')
@@ -14,6 +33,13 @@ export function SystemStatus() {
   const [temperature, setTemperature] = useState<number>(0)
   const [uptime, setUptime] = useState<string>('0h 0m')
   const [hardwareStatus, setHardwareStatus] = useState<any>(null)
+  const [services, setServices] = useState<ServiceStatus>({
+    can: { initialized: false, stats: {} },
+    wifi: { initialized: false, status: {} },
+    database: { mongodb: false, influxdb: false },
+    services: { grafana: false }
+  })
+  const [systemServices, setSystemServices] = useState<SystemService[]>([])
   
   // Function to get system stats via API endpoint
   const getSystemStats = async () => {
@@ -32,6 +58,13 @@ export function SystemStatus() {
       setTemperature(data.temperature);
       setUptime(data.uptime);
       setHardwareStatus({ modelName: data.modelName });
+      setServices(data.services || {
+        can: { initialized: false, stats: {} },
+        wifi: { initialized: false, status: {} },
+        database: { mongodb: false, influxdb: false },
+        services: { grafana: false }
+      });
+      setSystemServices(data.systemServices || []);
 
       // Set system health based on metrics
       if (cpuUsage > 90 || memoryUsage.percent > 90 || temperature > 75) {
@@ -73,67 +106,125 @@ export function SystemStatus() {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+    <Card className="col-span-3">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="space-y-1">
           <CardTitle>System Status</CardTitle>
-          <Badge className={getBadgeClass()}>{systemHealth === 'healthy' ? 'Healthy' : systemHealth === 'warning' ? 'Warning' : 'Critical'}</Badge>
+          <CardDescription>Hardware metrics and health status</CardDescription>
         </div>
-        <CardDescription>Raspberry Pi {hardwareStatus?.modelName || '3 Model B Rev 1.2'}</CardDescription>
+        <div className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ml-auto ${systemHealth === 'healthy' ? 'bg-green-500' : systemHealth === 'warning' ? 'bg-amber-500' : 'bg-red-500'}`}>
+          {systemHealth === 'healthy' ? 'Healthy' : systemHealth === 'warning' ? 'Warning' : 'Critical'}
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-blue-500" />
-                <span className="text-sm font-medium">CPU Usage</span>
+      <CardContent className="space-y-4">
+        {/* CPU Usage */}
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <Cpu className="h-4 w-4 mr-2" />
+            <span className="font-medium">CPU Usage</span>
+            <span className="ml-auto">{cpuUsage.toFixed(1)}%</span>
+          </div>
+          <Progress value={cpuUsage} className="h-1" />
+        </div>
+        
+        {/* Memory Usage */}
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <Memory className="h-4 w-4 mr-2" />
+            <span className="font-medium">Memory Usage</span>
+            <span className="ml-auto">{memoryUsage.used} GB / {memoryUsage.total} GB ({memoryUsage.percent}%)</span>
+          </div>
+          <Progress value={memoryUsage.percent} className="h-1" />
+        </div>
+        
+        {/* Storage Usage */}
+        <div className="space-y-2">
+          <div className="flex items-center">
+            <HardDrive className="h-4 w-4 mr-2" />
+            <span className="font-medium">Storage</span>
+            <span className="ml-auto">{storageUsage.used} / {storageUsage.total} ({storageUsage.percent}%)</span>
+          </div>
+          <Progress value={storageUsage.percent} className="h-1" />
+        </div>
+        
+        {/* Temperature */}
+        <div className="flex items-center">
+          <Thermometer className="h-4 w-4 mr-2" />
+          <span className="font-medium">Temperature</span>
+          <span className="ml-auto">{temperature.toFixed(1)}°C</span>
+        </div>
+        
+        {/* Uptime */}
+        <div className="flex items-center">
+          <CirclePower className="h-4 w-4 mr-2" />
+          <span className="font-medium">Uptime</span>
+          <span className="ml-auto">{uptime}</span>
+        </div>
+        
+        {/* Service Status */}
+        <div className="mt-6">
+          <h3 className="text-sm font-medium mb-3">System Services</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Interface Status */}
+            <div className="flex items-center p-2 rounded bg-gray-100 dark:bg-gray-800">
+              <Server className="h-4 w-4 mr-2" />
+              <span className="font-medium">CAN</span>
+              <div className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ml-auto ${services.can.initialized ? "bg-green-500" : "bg-gray-400"}`}>
+                {services.can.initialized ? "Online" : "Offline"}
               </div>
-              <span className="text-sm">{cpuUsage.toFixed(1)}%</span>
             </div>
-            <Progress value={cpuUsage} className="h-2" />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Memory className="h-4 w-4 text-purple-500" />
-                <span className="text-sm font-medium">Memory</span>
+            
+            <div className="flex items-center p-2 rounded bg-gray-100 dark:bg-gray-800">
+              <Wifi className="h-4 w-4 mr-2" />
+              <span className="font-medium">WiFi</span>
+              <div className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ml-auto ${services.wifi.initialized ? "bg-green-500" : "bg-gray-400"}`}>
+                {services.wifi.initialized ? "Online" : "Offline"}
               </div>
-              <span className="text-sm">{memoryUsage.used} GB / {memoryUsage.total} GB</span>
             </div>
-            <Progress value={memoryUsage.percent} className="h-2" />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <HardDrive className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium">Storage</span>
+            
+            {/* Database Status */}
+            <div className="flex items-center p-2 rounded bg-gray-100 dark:bg-gray-800">
+              <Database className="h-4 w-4 mr-2" />
+              <span className="font-medium">MongoDB</span>
+              <div className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ml-auto ${services.database.mongodb ? "bg-green-500" : "bg-gray-400"}`}>
+                {services.database.mongodb ? "Connected" : "Disconnected"}
               </div>
-              <span className="text-sm">{storageUsage.used} / {storageUsage.total}</span>
             </div>
-            <Progress value={storageUsage.percent} className="h-2" />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Thermometer className="h-4 w-4 text-red-500" />
-                <span className="text-sm font-medium">Temperature</span>
+            
+            <div className="flex items-center p-2 rounded bg-gray-100 dark:bg-gray-800">
+              <Database className="h-4 w-4 mr-2" />
+              <span className="font-medium">InfluxDB</span>
+              <div className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ml-auto ${services.database.influxdb ? "bg-green-500" : "bg-gray-400"}`}>
+                {services.database.influxdb ? "Connected" : "Disconnected"}
               </div>
-              <span className="text-sm">{temperature.toFixed(1)}°C</span>
             </div>
-            <Progress value={temperature} max={100} className="h-2" />
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-2">
-              <CirclePower className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-medium">Uptime</span>
+            
+            {/* Other Services */}
+            <div className="flex items-center p-2 rounded bg-gray-100 dark:bg-gray-800">
+              <Server className="h-4 w-4 mr-2" />
+              <span className="font-medium">Grafana</span>
+              <div className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ml-auto ${services.services.grafana ? "bg-green-500" : "bg-gray-400"}`}>
+                {services.services.grafana ? "Running" : "Stopped"}
+              </div>
             </div>
-            <span className="text-sm">{uptime}</span>
           </div>
+          
+          {/* System Services List */}
+          {systemServices.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2">Running System Services</h4>
+              <div className="text-xs space-y-1 max-h-32 overflow-auto">
+                {systemServices.map((service: SystemService, index: number) => (
+                  <div key={index} className="flex items-center justify-between py-1 border-b border-gray-200 dark:border-gray-700">
+                    <span className="font-medium">{service.name}</span>
+                    <div className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ml-2 ${service.status === "running" ? "bg-green-500" : "bg-gray-400"}`}>
+                      {service.status}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
