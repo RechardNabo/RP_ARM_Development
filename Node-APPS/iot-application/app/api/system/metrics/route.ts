@@ -38,7 +38,25 @@ function promisify<T extends (...args: any[]) => any>(fn: T): (...args: Paramete
   };
 }
 
-const execAsync = promisify(exec);
+// Define the result type for execAsync with optional options parameter
+interface ExecOptions {
+  encoding?: string;
+  timeout?: number;
+  maxBuffer?: number;
+  killSignal?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+const execAsync = (command: string, options?: ExecOptions) => {
+  return new Promise<ExecResult>((resolve, reject) => {
+    // @ts-ignore - This will be replaced at runtime by Node.js util.promisify
+    exec(command, options || {}, (error, stdout, stderr) => {
+      if (error) reject(error);
+      else resolve({ stdout, stderr });
+    });
+  });
+};
 
 // Helper function to determine if we're in preview mode
 function isPreviewMode(): boolean {
@@ -69,11 +87,7 @@ export interface SystemMetrics {
   temperature: {
     cpu: number // in °C
   }
-  uptime: {
-    days: number
-    hours: number
-    minutes: number
-  }
+  uptime: string // formatted uptime string
 }
 
 // Mock data for preview mode or errors
@@ -95,11 +109,7 @@ function getMockSystemMetrics(): SystemMetrics {
     temperature: {
       cpu: 42,
     },
-    uptime: {
-      days: 3,
-      hours: 14,
-      minutes: 22,
-    }
+    uptime: "3d 14h 22m"
   }
 }
 
@@ -115,56 +125,30 @@ export async function GET(request: NextRequest) {
     }
 
     // Get CPU usage
-    const { stdout: cpuOutput } = await execAsync("top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}'")
-    const cpuUsage = parseFloat(cpuOutput.trim())
+    const cpuUsage = await getCpuUsage()
 
     // Get memory information
-    const { stdout: memOutput } = await execAsync("free -m | grep 'Mem:'")
-    const memParts = memOutput.trim().split(/\s+/)
-    const memTotal = parseInt(memParts[1], 10)
-    const memUsed = parseInt(memParts[2], 10)
-    const memFree = parseInt(memParts[3], 10)
+    const memInfo = await getMemoryInfo()
 
     // Get storage information
-    const { stdout: dfOutput } = await execAsync("df -h / | grep -v Filesystem")
-    const dfParts = dfOutput.trim().split(/\s+/)
-    const storageTotal = parseFloat(dfParts[1].replace('G', ''))
-    const storageUsed = parseFloat(dfParts[2].replace('G', ''))
-    const storageFree = parseFloat(dfParts[3].replace('G', ''))
+    const storageInfo = await getStorageInfo()
 
     // Get CPU temperature
-    const { stdout: tempOutput } = await execAsync("cat /sys/class/thermal/thermal_zone0/temp")
-    const temperature = Math.round(parseInt(tempOutput.trim(), 10) / 1000)
+    const temperature = await getCpuTemperature()
 
     // Get system uptime
-    const { stdout: uptimeOutput } = await execAsync("cat /proc/uptime")
-    const uptime = parseFloat(uptimeOutput.split(' ')[0])
-    const uptimeDays = Math.floor(uptime / 86400)
-    const uptimeHours = Math.floor((uptime % 86400) / 3600)
-    const uptimeMinutes = Math.floor((uptime % 3600) / 60)
+    const uptimeString = await getSystemUptime()
 
     const metrics: SystemMetrics = {
       cpu: {
         usage: cpuUsage,
       },
-      memory: {
-        total: memTotal,
-        used: memUsed,
-        free: memFree,
-      },
-      storage: {
-        total: storageTotal,
-        used: storageUsed,
-        free: storageFree,
-      },
+      memory: memInfo,
+      storage: storageInfo,
       temperature: {
         cpu: temperature,
       },
-      uptime: {
-        days: uptimeDays,
-        hours: uptimeHours,
-        minutes: uptimeMinutes,
-      },
+      uptime: uptimeString,
     }
 
     // @ts-ignore - This will work at runtime
@@ -181,5 +165,193 @@ export async function GET(request: NextRequest) {
       success: true,
       metrics: getMockSystemMetrics(),
     }, { status: 200 })
+  }
+}
+
+async function getCpuUsage(): Promise<number> {
+  try {
+    // Try several commands since different Linux distros might have different outputs
+    try {
+      const { stdout } = await execAsync("top -bn1 | grep '%Cpu(s)' | awk '{print $2 + $4}'" , {})
+      if (stdout && stdout.trim()) {
+        return parseFloat(stdout.trim()) || 0
+      }
+    } catch (e) {
+      // First command failed, try alternative
+    }
+    
+    try {
+      const { stdout } = await execAsync("grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$4+$5)} END {print usage}'" , {})
+      if (stdout && stdout.trim()) {
+        return parseFloat(stdout.trim()) || 0
+      }
+    } catch (e) {
+      // Second command failed
+    }
+    
+    return 0
+  } catch (error) {
+    console.error("Failed to get CPU usage:", error)
+    return 0
+  }
+}
+
+async function getStorageInfo(): Promise<{ total: number; used: number; free: number }> {
+  try {
+    try {
+      const { stdout } = await execAsync("df -h / | tail -1 | awk '{print $2\" \"$3\" \"$4}'")
+      if (stdout && stdout.trim()) {
+        const [totalStr, usedStr, freeStr] = stdout.trim().split(" ")
+        
+        // Convert sizes like 29G, 15G to GB numbers
+        const extractGB = (str: string) => {
+          if (!str) return 0
+          // Safely extract the numeric part
+          const matches = str.match(/([\d.]+)/)
+          const num = matches && matches[1] ? parseFloat(matches[1]) : 0
+          
+          // Determine unit multiplier
+          const isGB = str.toUpperCase().includes('G')
+          const isMB = str.toUpperCase().includes('M')
+          const isKB = str.toUpperCase().includes('K')
+          
+          if (isGB) return num
+          if (isMB) return num / 1024
+          if (isKB) return num / (1024 * 1024)
+          return num
+        }
+        
+        return {
+          total: extractGB(totalStr),
+          used: extractGB(usedStr),
+          free: extractGB(freeStr)
+        }
+      }
+    } catch (e) {
+      // First approach failed
+    }
+    
+    // Try another approach for Raspberry Pi
+    const { stdout } = await execAsync("df -B1 / | tail -1 | awk '{print $2\" \"$3\" \"$4}'")
+    if (stdout && stdout.trim()) {
+      const [totalStr, usedStr, freeStr] = stdout.trim().split(" ")
+      return {
+        total: parseFloat(totalStr) / (1024 * 1024 * 1024) || 0, // bytes to GB
+        used: parseFloat(usedStr) / (1024 * 1024 * 1024) || 0,
+        free: parseFloat(freeStr) / (1024 * 1024 * 1024) || 0
+      }
+    }
+    
+    return { total: 0, used: 0, free: 0 }
+  } catch (error) {
+    console.error("Failed to get storage info:", error)
+    return { total: 0, used: 0, free: 0 }
+  }
+}
+
+async function getMemoryInfo(): Promise<{ total: number; used: number; free: number }> {
+  try {
+    try {
+      const { stdout } = await execAsync("free -m | grep 'Mem:'" , {})
+      if (stdout && stdout.trim()) {
+        const parts = stdout.trim().split(/\s+/)
+        if (parts.length >= 4) {
+          return {
+            total: parseInt(parts[1], 10) || 0,
+            used: parseInt(parts[2], 10) || 0,
+            free: parseInt(parts[3], 10) || 0
+          }
+        }
+      }
+    } catch (e) {
+      // First approach failed
+    }
+    
+    // Try alternative approach
+    try {
+      const { stdout: totalMem } = await execAsync("cat /proc/meminfo | grep MemTotal | awk '{print $2}'" , {})
+      const { stdout: freeMem } = await execAsync("cat /proc/meminfo | grep MemFree | awk '{print $2}'" , {})
+      
+      if (totalMem && freeMem) {
+        const total = parseInt(totalMem.trim(), 10) / 1024 || 0 // KB to MB
+        const free = parseInt(freeMem.trim(), 10) / 1024 || 0
+        return {
+          total,
+          used: total - free,
+          free
+        }
+      }
+    } catch (e) {
+      // Alternative approach failed
+    }
+    
+    return { total: 0, used: 0, free: 0 }
+  } catch (error) {
+    console.error("Failed to get memory info:", error)
+    return { total: 0, used: 0, free: 0 }
+  }
+}
+
+async function getCpuTemperature(): Promise<number> {
+  try {
+    // Try various methods for Raspberry Pi temperature
+    try {
+      const { stdout } = await execAsync("vcgencmd measure_temp" , {})
+      if (stdout && stdout.trim()) {
+        // Extract the numeric part using regex
+        const match = stdout.match(/([\d.]+)/)
+        if (match && match[1]) {
+          return parseFloat(match[1]) || 0
+        }
+      }
+    } catch (e) {
+      // First method failed, try alternative
+    }
+    
+    try {
+      const { stdout } = await execAsync("cat /sys/class/thermal/thermal_zone0/temp" , {})
+      if (stdout && stdout.trim()) {
+        return Math.round(parseInt(stdout.trim(), 10) / 1000) || 0
+      }
+    } catch (e) {
+      // Second method failed
+    }
+    
+    return 0
+  } catch (error) {
+    console.error("Failed to get CPU temperature:", error)
+    return 0
+  }
+}
+
+async function getSystemUptime(): Promise<string> {
+  try {
+    try {
+      const { stdout } = await execAsync("uptime -p" , {})
+      if (stdout && stdout.trim()) {
+        const uptime = stdout.trim()
+        return uptime.includes("up ") ? uptime.replace("up ", "") : uptime
+      }
+    } catch (e) {
+      // First method failed
+    }
+    
+    try {
+      const { stdout } = await execAsync("cat /proc/uptime" , {})
+      if (stdout && stdout.trim()) {
+        const uptime = parseFloat(stdout.split(' ')[0])
+        const days = Math.floor(uptime / 86400)
+        const hours = Math.floor((uptime % 86400) / 3600)
+        const minutes = Math.floor((uptime % 3600) / 60)
+        return `${days}d ${hours}h ${minutes}m`
+      }
+    } catch (e) {
+      // Second method failed
+    }
+    
+    return "unknown"
+  } catch (error) {
+    console.error("Failed to get system uptime:", error)
+    return "unknown"
   }
 }
