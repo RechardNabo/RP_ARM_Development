@@ -47,6 +47,12 @@ function isPreviewMode(): boolean {
   );
 }
 
+export interface SystemService {
+  name: string
+  status: 'active' | 'inactive' | 'failed' | 'unknown'
+  description: string
+}
+
 export interface SystemMetrics {
   cpu: {
     usage: number // percentage 0-100
@@ -69,6 +75,7 @@ export interface SystemMetrics {
     hours: number
     minutes: number
   }
+  services: SystemService[]
 }
 
 // Mock data for preview mode or errors
@@ -83,9 +90,9 @@ function getMockSystemMetrics(): SystemMetrics {
       free: 714,
     },
     storage: {
-      total: 32,
-      used: 12.4,
-      free: 19.6,
+      total: 29.2,
+      used: 14.6,
+      free: 14.6,
     },
     temperature: {
       cpu: 42,
@@ -95,6 +102,33 @@ function getMockSystemMetrics(): SystemMetrics {
       hours: 0,
       minutes: 0
     },
+    services: [
+      {
+        name: 'can0-interface',
+        status: 'active',
+        description: 'CAN0 Interface Setup'
+      },
+      {
+        name: 'influxdb',
+        status: 'inactive',
+        description: 'InfluxDB Time Series Database'
+      },
+      {
+        name: 'mongodb',
+        status: 'inactive',
+        description: 'MongoDB Database Server'
+      },
+      {
+        name: 'grafana-server',
+        status: 'inactive',
+        description: 'Grafana Dashboard'
+      },
+      {
+        name: 'nginx',
+        status: 'active',
+        description: 'Web Server'
+      },
+    ]
   }
 }
 
@@ -110,30 +144,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Get CPU usage
-    const cpuUsage = await getCpuUsage()
-
-    // Get memory information
-    const memInfo = await getMemoryInfo()
-
-    // Get storage information
+    const cpuMetrics = await getCpuUsage()
+    const memoryInfo = await getMemoryInfo()
     const storageInfo = await getStorageInfo()
-
-    // Get CPU temperature
-    const temperature = await getCpuTemperature()
-
-    // Get system uptime
-    const uptimeString = await getSystemUptime()
-
+    const temperatureInfo = await getCpuTemperature()
+    const uptimeInfo = await getSystemUptime()
+    const servicesInfo = await getSystemServices()
+    
     const metrics: SystemMetrics = {
       cpu: {
-        usage: cpuUsage,
+        usage: cpuMetrics
       },
-      memory: memInfo,
+      memory: memoryInfo,
       storage: storageInfo,
       temperature: {
-        cpu: temperature,
+        cpu: temperatureInfo
       },
-      uptime: uptimeString,
+      uptime: uptimeInfo,
+      services: servicesInfo
     }
 
     // @ts-ignore - This will work at runtime
@@ -401,5 +429,69 @@ async function getSystemUptime(): Promise<{ days: number; hours: number; minutes
   } catch (error) {
     console.error("Failed to get system uptime:", error)
     return { days: 0, hours: 0, minutes: 0 }
+  }
+}
+
+async function getSystemServices(): Promise<SystemService[]> {
+  if (isPreviewMode()) {
+    return getMockSystemMetrics().services
+  }
+  
+  try {
+    const services: SystemService[] = []
+    const serviceNames = [
+      'can0-interface',
+      'influxdb',
+      'mongod',
+      'grafana-server',
+      'nginx',
+      'webmin'
+    ]
+    
+    const serviceDescriptions: Record<string, string> = {
+      'can0-interface': 'CAN0 Interface Setup',
+      'influxdb': 'InfluxDB Time Series Database',
+      'mongod': 'MongoDB Database Server',
+      'grafana-server': 'Grafana Dashboard',
+      'nginx': 'Web Server',
+      'webmin': 'Webmin Administration'
+    }
+    
+    // Check each service status
+    for (const serviceName of serviceNames) {
+      try {
+        const { stdout } = await execAsync(`systemctl is-active ${serviceName}`)
+        const status = stdout.trim()
+        
+        // Map systemctl status outputs to our status types
+        let mappedStatus: SystemService['status'] = 'unknown'
+        if (status === 'active') {
+          mappedStatus = 'active'
+        } else if (status === 'inactive') {
+          mappedStatus = 'inactive'
+        } else if (status === 'failed') {
+          mappedStatus = 'failed'
+        }
+        
+        services.push({
+          name: serviceName,
+          status: mappedStatus,
+          description: serviceDescriptions[serviceName] || serviceName
+        })
+      } catch (error) {
+        // If command fails, assume service is inactive or doesn't exist
+        console.log(`Error checking service ${serviceName}:`, error)
+        services.push({
+          name: serviceName,
+          status: 'unknown',
+          description: serviceDescriptions[serviceName] || serviceName
+        })
+      }
+    }
+    
+    return services
+  } catch (error) {
+    console.error('Failed to get system services:', error)
+    return []
   }
 }

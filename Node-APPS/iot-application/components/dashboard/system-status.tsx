@@ -3,12 +3,12 @@
 // @ts-ignore - Next.js should resolve these imports at build time on the Raspberry Pi
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive } from "lucide-react"
+import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive, Server } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 // @ts-ignore - React is available in Next.js project
 import { useState, useEffect } from "react"
 import { getSystemMetricsService } from "@/lib/services/system-metrics-service"
-import type { SystemMetrics } from "@/app/api/system/metrics/route"
+import type { SystemMetrics, SystemService } from "@/app/api/system/metrics/route"
 
 export function SystemStatus() {
   const [metrics, setMetrics] = useState<SystemMetrics>({
@@ -133,6 +133,27 @@ export function SystemStatus() {
             <span className="text-sm">
               {metrics.uptime.days}d {metrics.uptime.hours}h {metrics.uptime.minutes}m
             </span>
+          </div>
+
+          <div className="mt-4 border-t pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Server className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-medium">System Services</span>
+            </div>
+            <div className="space-y-2">
+              {metrics.services.map((service: SystemService) => (
+                <div key={service.name} className="flex justify-between items-center">
+                  <span className="text-xs">{service.description}</span>
+                  <span 
+                    className={`px-2 py-1 text-xs rounded-full ${service.status === 'active' ? 'bg-green-500 text-white' : 
+                              service.status === 'inactive' ? 'bg-gray-500 text-white' : 
+                              service.status === 'failed' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}`}
+                  >
+                    {service.status}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </CardContent>

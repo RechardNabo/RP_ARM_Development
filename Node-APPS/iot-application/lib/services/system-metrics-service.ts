@@ -15,7 +15,8 @@ export class SystemMetricsService {
       memory: { total: 0, used: 0, free: 0 },
       storage: { total: 0, used: 0, free: 0 },
       temperature: { cpu: 0 },
-      uptime: { days: 0, hours: 0, minutes: 0 }
+      uptime: { days: 0, hours: 0, minutes: 0 },
+      services: []
     }
   }
 
