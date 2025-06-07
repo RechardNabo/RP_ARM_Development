@@ -64,7 +64,11 @@ export interface SystemMetrics {
   temperature: {
     cpu: number // in °C
   }
-  uptime: string // formatted uptime string
+  uptime: {
+    days: number
+    hours: number
+    minutes: number
+  }
 }
 
 // Mock data for preview mode or errors
@@ -86,7 +90,11 @@ function getMockSystemMetrics(): SystemMetrics {
     temperature: {
       cpu: 42,
     },
-    uptime: "3d 14h 22m"
+    uptime: {
+      days: 0,
+      hours: 0,
+      minutes: 0
+    },
   }
 }
 
@@ -314,34 +322,84 @@ async function getCpuTemperature(): Promise<number> {
   }
 }
 
-async function getSystemUptime(): Promise<string> {
+async function getSystemUptime(): Promise<{ days: number; hours: number; minutes: number }> {
   try {
+    let days = 0;
+    let hours = 0;
+    let minutes = 0;
+    
+    // Try uptime -p first (prettier output on most systems)
     try {
       const { stdout } = await execAsync("uptime -p")
       if (stdout && stdout.trim()) {
         const uptime = stdout.trim()
-        return uptime.includes("up ") ? uptime.replace("up ", "") : uptime
+        // Parse "up 5 days, 2 hours, 30 minutes" format
+        const daysMatch = uptime.match(/([0-9]+)\s+day/)
+        const hoursMatch = uptime.match(/([0-9]+)\s+hour/)
+        const minutesMatch = uptime.match(/([0-9]+)\s+minute/)
+        
+        if (daysMatch) days = parseInt(daysMatch[1], 10)
+        if (hoursMatch) hours = parseInt(hoursMatch[1], 10)
+        if (minutesMatch) minutes = parseInt(minutesMatch[1], 10)
+        
+        return { days, hours, minutes }
       }
     } catch (e) {
-      // First method failed
+      console.log("uptime -p command failed:", e)
+      // First method failed, continue to next
     }
     
+    // Try reading from /proc/uptime
     try {
       const { stdout } = await execAsync("cat /proc/uptime")
       if (stdout && stdout.trim()) {
         const uptime = parseFloat(stdout.split(' ')[0])
-        const days = Math.floor(uptime / 86400)
-        const hours = Math.floor((uptime % 86400) / 3600)
-        const minutes = Math.floor((uptime % 3600) / 60)
-        return `${days}d ${hours}h ${minutes}m`
+        days = Math.floor(uptime / 86400)
+        hours = Math.floor((uptime % 86400) / 3600)
+        minutes = Math.floor((uptime % 3600) / 60)
+        return { days, hours, minutes }
       }
     } catch (e) {
-      // Second method failed
+      console.log("/proc/uptime approach failed:", e)
+      // Second method failed, continue
     }
     
-    return "unknown"
+    // Last resort - try using uptime command without -p
+    try {
+      const { stdout } = await execAsync("uptime")
+      if (stdout && stdout.trim()) {
+        // The uptime command output varies by system, try to extract values
+        // Typical format: "12:34:56 up 1 day, 3:45, 2 users, load average: 0.52, 0.58, 0.59"
+        const uptimeStr = stdout.split('up ')[1]?.split(',')?.[0] || ''
+        
+        if (uptimeStr.includes('day')) {
+          const dayParts = uptimeStr.split('day')
+          days = parseInt(dayParts[0].trim(), 10) || 0
+          
+          // Try to get hours/minutes from the remainder
+          const timeStr = dayParts[1]?.trim() || ''
+          if (timeStr.includes(':')) {
+            const [hourStr, minStr] = timeStr.split(':').map((s: string) => s.trim())
+            hours = parseInt(hourStr, 10) || 0
+            minutes = parseInt(minStr, 10) || 0
+          }
+        } else if (uptimeStr.includes(':')) {
+          // Format without days, just hours:minutes
+          const [hourStr, minStr] = uptimeStr.split(':').map((s: string) => s.trim())
+          hours = parseInt(hourStr, 10) || 0
+          minutes = parseInt(minStr, 10) || 0
+        }
+        
+        return { days, hours, minutes }
+      }
+    } catch (e) {
+      console.log("uptime command failed:", e)
+    }
+    
+    // Default fallback
+    return { days: 0, hours: 0, minutes: 0 }
   } catch (error) {
     console.error("Failed to get system uptime:", error)
-    return "unknown"
+    return { days: 0, hours: 0, minutes: 0 }
   }
 }
