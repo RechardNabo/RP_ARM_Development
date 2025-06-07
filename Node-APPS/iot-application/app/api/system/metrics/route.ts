@@ -81,53 +81,32 @@ export interface SystemMetrics {
 // Mock data for preview mode or errors
 function getMockSystemMetrics(): SystemMetrics {
   return {
-    cpu: {
-      usage: 23,
-    },
+    cpu: { usage: Math.round(Math.random() * 100) },
     memory: {
-      total: 1024,
-      used: 310,
-      free: 714,
+      total: 8 * 1024, // 8GB in MB
+      used: Math.round(Math.random() * 4 * 1024), // Random up to 4GB
+      free: 4 * 1024, // 4GB in MB
     },
     storage: {
-      total: 29.2,
-      used: 14.6,
-      free: 14.6,
+      total: 32 * 1024, // 32GB in MB
+      used: Math.round(Math.random() * 16 * 1024), // Random up to 16GB
+      free: 16 * 1024, // 16GB in MB
     },
     temperature: {
-      cpu: 42,
+      cpu: Math.round(40 + Math.random() * 20), // Random between 40-60°C
     },
     uptime: {
-      days: 0,
-      hours: 0,
-      minutes: 0
+      days: 3,
+      hours: 7,
+      minutes: 45
     },
     services: [
-      {
-        name: 'can0-interface',
-        status: 'active',
-        description: 'CAN0 Interface Setup'
-      },
-      {
-        name: 'influxdb',
-        status: 'inactive',
-        description: 'InfluxDB Time Series Database'
-      },
-      {
-        name: 'mongodb',
-        status: 'inactive',
-        description: 'MongoDB Database Server'
-      },
-      {
-        name: 'grafana-server',
-        status: 'inactive',
-        description: 'Grafana Dashboard'
-      },
-      {
-        name: 'nginx',
-        status: 'active',
-        description: 'Web Server'
-      },
+      { name: "can0-interface", status: "active", description: "CAN0 Interface Setup" },
+      { name: "influxdb", status: "inactive", description: "InfluxDB Time Series Database" },
+      { name: "mongod", status: "active", description: "MongoDB Database Server" },
+      { name: "grafana-server", status: "active", description: "Grafana Dashboard" },
+      { name: "nginx", status: "active", description: "Web Server" },
+      { name: "webmin", status: "inactive", description: "Webmin Administration" }
     ]
   }
 }
@@ -434,7 +413,7 @@ async function getSystemUptime(): Promise<{ days: number; hours: number; minutes
 
 async function getSystemServices(): Promise<SystemService[]> {
   if (isPreviewMode()) {
-    return getMockSystemMetrics().services
+    return getMockSystemMetrics().services || []
   }
   
   try {
