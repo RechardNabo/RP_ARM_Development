@@ -1,14 +1,58 @@
-"use client" // Mark as client component to enable React hooks
-
-// @ts-ignore - Next.js should resolve these imports at build time on the Raspberry Pi
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { CirclePower, Cpu, Thermometer, MemoryStickIcon as Memory, HardDrive, Server } from "lucide-react"
-import { Progress } from "@/components/ui/progress"
-// @ts-ignore - React is available in Next.js project
-import { useState, useEffect } from "react"
+"use client" // @ts-nocheck
 import { getSystemMetricsService } from "@/lib/services/system-metrics-service"
+// Direct imports to avoid path resolution issues
+import { useState, useEffect } from "react"
+import { CirclePower, Cpu, Thermometer, HardDrive, Server } from "lucide-react"
 import type { SystemMetrics, SystemService } from "@/app/api/system/metrics/route"
+
+// Memory icon workaround (MemoryStickIcon isn't available in some lucide-react versions)
+const Memory = HardDrive
+
+// Simplified UI components to avoid import issues
+const Card = ({ children }: { children: React.ReactNode }) => (
+  <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+    {children}
+  </div>
+)
+
+const CardHeader = ({ className, children }: { className?: string, children: React.ReactNode }) => (
+  <div className={`flex flex-col space-y-1.5 p-6 ${className || ''}`}>
+    {children}
+  </div>
+)
+
+const CardTitle = ({ children }: { children: React.ReactNode }) => (
+  <h3 className="text-2xl font-semibold leading-none tracking-tight">
+    {children}
+  </h3>
+)
+
+const CardDescription = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-sm text-muted-foreground">
+    {children}
+  </p>
+)
+
+const CardContent = ({ className, children }: { className?: string, children: React.ReactNode }) => (
+  <div className={`p-6 pt-0 ${className || ''}`}>
+    {children}
+  </div>
+)
+
+const Progress = ({ value, className }: { value: number, className?: string }) => (
+  <div className={`relative h-4 w-full overflow-hidden rounded-full bg-secondary ${className || ''}`}>
+    <div 
+      className="h-full w-full flex-1 bg-primary transition-all" 
+      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+    />
+  </div>
+)
+
+const Badge = ({ className, children }: { className?: string, children: React.ReactNode }) => (
+  <span className={`px-2 py-1 text-xs rounded-full ${className || ''}`}>
+    {children}
+  </span>
+)
 
 export function SystemStatus() {
   const [metrics, setMetrics] = useState<SystemMetrics>({
