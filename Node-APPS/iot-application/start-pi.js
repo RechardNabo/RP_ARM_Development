@@ -57,7 +57,7 @@ async function fixBuildFiles() {
   const buildId = Date.now().toString();
   ensureFileExists(buildIdPath, buildId);
   
-  // Create routes-manifest.json if missing
+  // Create routes-manifest.json if missing or replace it
   const routesManifest = {
     version: 3,
     basePath: "",
@@ -69,9 +69,10 @@ async function fixBuildFiles() {
     dataRoutes: [],
     i18n: { locales: ["en"], defaultLocale: "en" }
   };
-  ensureFileExists(routesManifestPath, JSON.stringify(routesManifest, null, 2));
+  // Always create a fresh routes-manifest.json
+  fs.writeFileSync(routesManifestPath, JSON.stringify(routesManifest, null, 2));
   
-  // Create or update build-manifest.json
+  // Create or update build-manifest.json with complete middleware configuration
   const buildManifest = {
     polyfillFiles: [],
     devFiles: [],
@@ -84,7 +85,7 @@ async function fixBuildFiles() {
       '/_error': [],
       '/_document': [] 
     },
-    middleware: {},
+    // Empty middleware object instead of defining _middleware
     ampFirstPages: []
   };
   
@@ -111,6 +112,33 @@ async function fixBuildFiles() {
   }, null, 2));
   
   ensureFileExists(path.join(nextDir, 'react-loadable-manifest.json'), '{}');
+  
+  // Create an empty server directory structure if not exists
+  const serverDir = path.join(nextDir, 'server');
+  if (!fs.existsSync(serverDir)) {
+    fs.mkdirSync(serverDir, { recursive: true });
+  }
+  
+  // Ensure we have minimal pages directory structure
+  const pagesDir = path.join(serverDir, 'pages');
+  if (!fs.existsSync(pagesDir)) {
+    fs.mkdirSync(pagesDir, { recursive: true });
+  }
+  
+  // Create empty middleware config to prevent middleware errors
+  const middlewareManifest = {
+    version: 1,
+    sortedMiddleware: [],
+    middleware: {},
+    functions: {},
+    matchers: {}
+  };
+  fs.writeFileSync(path.join(nextDir, 'server', 'middleware-manifest.json'), 
+    JSON.stringify(middlewareManifest, null, 2));
+    
+  // Create minimal webpack-runtime if not exists
+  ensureFileExists(path.join(nextDir, 'server', 'webpack-runtime.js'), 
+    'module.exports = {}');
   
   console.log('✅ Build files fixed successfully!');
 }
