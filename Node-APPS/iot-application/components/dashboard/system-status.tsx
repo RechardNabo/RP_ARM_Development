@@ -192,7 +192,8 @@ export function SystemStatus() {
                     <span 
                       className={`px-2 py-1 text-xs rounded-full ${service.status === 'active' ? 'bg-green-500 text-white' : 
                                 service.status === 'inactive' ? 'bg-gray-500 text-white' : 
-                                service.status === 'failed' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}`}
+                                service.status === 'failed' ? 'bg-red-500 text-white' : 
+                                service.status === 'activating' ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white'}`}
                     >
                       {service.status}
                     </span>

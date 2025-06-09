@@ -49,7 +49,7 @@ function isPreviewMode(): boolean {
 
 export interface SystemService {
   name: string
-  status: 'active' | 'inactive' | 'failed' | 'unknown'
+  status: 'active' | 'inactive' | 'failed' | 'activating' | 'unknown'
   description: string
 }
 
@@ -450,6 +450,8 @@ async function getSystemServices(): Promise<SystemService[]> {
           mappedStatus = 'inactive'
         } else if (status === 'failed') {
           mappedStatus = 'failed'
+        } else if (status === 'activating') {
+          mappedStatus = 'activating'
         }
         
         services.push({
