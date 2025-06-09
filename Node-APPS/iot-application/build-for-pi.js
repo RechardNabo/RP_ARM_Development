@@ -70,7 +70,17 @@ async function main() {
       ampDevFiles: [],
       lowPriorityFiles: [],
       rootMainFiles: [],
-      pages: { '/_app': [], '/': [] },
+      pages: { 
+        '/_app': [], 
+        '/': [],
+        '/_error': [],
+        '/_document': [] 
+      },
+      middleware: {
+        '/_middleware': {
+          files: []
+        }
+      },
       ampFirstPages: []
     }, null, 2));
     
