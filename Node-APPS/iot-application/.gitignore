@@ -4,7 +4,8 @@
 /node_modules
 
 # next.js
-/.next/
+# Allow .next directory to be committed for Raspberry Pi deployment
+# /.next/
 /out/
 
 # production
