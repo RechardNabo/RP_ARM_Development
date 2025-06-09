@@ -178,32 +178,6 @@ export function SystemStatus() {
               {metrics.uptime.days}d {metrics.uptime.hours}h {metrics.uptime.minutes}m
             </span>
           </div>
-
-          <div className="mt-4 border-t pt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Server className="h-4 w-4 text-blue-400" />
-              <span className="text-sm font-medium">System Services</span>
-            </div>
-            <div className="space-y-2">
-              {metrics.services && metrics.services.length > 0 ? (
-                metrics.services.map((service: SystemService) => (
-                  <div key={service.name} className="flex justify-between items-center">
-                    <span className="text-xs">{service.description}</span>
-                    <span 
-                      className={`px-2 py-1 text-xs rounded-full ${service.status === 'active' ? 'bg-green-500 text-white' : 
-                                service.status === 'inactive' ? 'bg-gray-500 text-white' : 
-                                service.status === 'failed' ? 'bg-red-500 text-white' : 
-                                service.status === 'activating' ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white'}`}
-                    >
-                      {service.status}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-gray-500">No service data available</div>
-              )}
-            </div>
-          </div>
         </div>
       </CardContent>
     </Card>
