@@ -35,11 +35,11 @@
   "/page": "app/page.js",
   "/reports/analytics/page": "app/reports/analytics/page.js",
   "/reports/export/page": "app/reports/export/page.js",
-  "/reports/page": "app/reports/page.js",
   "/settings/cloud/page": "app/settings/cloud/page.js",
+  "/reports/page": "app/reports/page.js",
   "/settings/page": "app/settings/page.js",
   "/settings/preferences/page": "app/settings/preferences/page.js",
   "/users/page": "app/users/page.js",
-  "/users/security/page": "app/users/security/page.js",
-  "/users/roles/page": "app/users/roles/page.js"
+  "/users/roles/page": "app/users/roles/page.js",
+  "/users/security/page": "app/users/security/page.js"
 }
