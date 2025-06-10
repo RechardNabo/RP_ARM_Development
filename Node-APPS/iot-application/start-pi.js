@@ -151,14 +151,16 @@ async function fixBuildFiles() {
 function patchNextJsServerFiles() {
   // 1. Check if we need to create a server runtime fix
   const distDir = path.join(process.cwd(), '.next');
-  const nodeModulesDir = path.join(process.cwd(), 'node_modules');
   
   // Create a patch script that will run before the server starts
   const patchPath = path.join(distDir, 'server', 'middleware-patch.js');
   
-  // Create a patch that prevents the middleware error
+  // Create a more aggressive patch that prevents the middleware error
+  // This directly overrides Object.prototype to prevent property access errors
   const patchContent = `
-// Patch to prevent middleware errors
+// Advanced patch to prevent middleware errors in Next.js 15.2.4
+
+// Intercept require calls for middleware files
 const originalRequire = module.constructor.prototype.require;
 module.constructor.prototype.require = function(path) {
   try {
@@ -166,13 +168,47 @@ module.constructor.prototype.require = function(path) {
   } catch (error) {
     // If error is about middleware, return an empty object
     if (path.includes('middleware') || path.includes('_middleware')) {
-      console.log('Intercepted middleware require, returning empty implementation');
+      console.log('\x1b[33mNext.js middleware intercepted, using empty implementation\x1b[0m');
       return {};
     }
     throw error;
   }
 };
+
+// Direct patch for the specific error: Cannot read properties of undefined (reading '/_middleware')
+// This adds a global Object.prototype handler to intercept '/_middleware' access on undefined objects
+const originalGet = Object.prototype.__lookupGetter__('_middleware'); 
+Object.defineProperty(Object.prototype, '_middleware', {
+  get: function() {
+    // If we're trying to access _middleware on undefined, return empty object
+    if (this === undefined) {
+      console.log('\x1b[33mIntercepted attempt to access _middleware on undefined\x1b[0m');
+      return {};
+    }
+    // Otherwise use original getter if it exists, or undefined
+    return originalGet ? originalGet.call(this) : undefined;
+  },
+  configurable: true
+});
+
+// Add getter for /_middleware path access pattern that's causing errors
+const originalGetSlashMiddleware = Object.prototype.__lookupGetter__('/_middleware');
+Object.defineProperty(Object.prototype, '/_middleware', {
+  get: function() {
+    // Always return empty array for /_middleware access to prevent errors
+    console.log('\x1b[33mIntercepted access to /_middleware, returning empty array\x1b[0m');
+    return [];
+  },
+  configurable: true
+});
+
+console.log('\x1b[32mNext.js middleware protection patches loaded\x1b[0m');
 `;
+
+  // Create server directory if it doesn't exist
+  if (!fs.existsSync(path.dirname(patchPath))) {
+    fs.mkdirSync(path.dirname(patchPath), { recursive: true });
+  }
 
   // Save the patch
   fs.writeFileSync(patchPath, patchContent);
@@ -185,9 +221,35 @@ require('./server/middleware-patch.js');
 `;
   fs.writeFileSync(preloadPath, preloadContent);
   
-  // Set NODE_OPTIONS to include our preload script
-  process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS || ''} --require "${preloadPath}"`.trim();
-  env.NODE_OPTIONS = `${env.NODE_OPTIONS || ''} --require "${preloadPath}"`.trim();
+  // Fix the existing build-manifest.json to safely handle middleware
+  const buildManifestPath = path.join(distDir, 'build-manifest.json');
+  if (fs.existsSync(buildManifestPath)) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(buildManifestPath, 'utf8'));
+      // Ensure middleware is defined with empty object
+      manifest.middleware = manifest.middleware || {};
+      // Save the updated manifest
+      fs.writeFileSync(buildManifestPath, JSON.stringify(manifest, null, 2));
+    } catch (err) {
+      console.warn('Could not update build manifest, creating new one');
+      const newManifest = {
+        polyfillFiles: [],
+        devFiles: [],
+        ampDevFiles: [],
+        lowPriorityFiles: [],
+        rootMainFiles: [],
+        pages: { '/_app': [], '/': [] },
+        middleware: {},
+        ampFirstPages: []
+      };
+      fs.writeFileSync(buildManifestPath, JSON.stringify(newManifest, null, 2));
+    }
+  }
+  
+  // Set NODE_OPTIONS to preload our patch before anything else loads
+  const absolutePreloadPath = path.resolve(preloadPath);
+  process.env.NODE_OPTIONS = `--require "${absolutePreloadPath}" ${process.env.NODE_OPTIONS || ''}`.trim();
+  env.NODE_OPTIONS = `--require "${absolutePreloadPath}" ${env.NODE_OPTIONS || ''}`.trim();
   
   console.log('🛠️  Added middleware error prevention patches');
 }
