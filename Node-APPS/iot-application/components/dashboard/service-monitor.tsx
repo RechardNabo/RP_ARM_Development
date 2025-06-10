@@ -1,8 +1,8 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Database, Server, Activity, Globe, Cpu, RefreshCcw } from "lucide-react"
+import { Shield, Loader2, AlertCircle } from "lucide-react"
 import { useSystemMetrics } from "@/hooks/use-system-metrics"
 import { useState, useEffect } from "react"
 
@@ -12,133 +12,85 @@ export interface SystemService {
   description: string;
 }
 
+// Default service list to show when no data is available
+const DEFAULT_SERVICES = [
+  { name: "can0-interface", description: "CAN0 Interface Setup", status: "unknown" },
+  { name: "influxdb", description: "InfluxDB Time Series Database", status: "unknown" },
+  { name: "mongod", description: "MongoDB Database Server", status: "unknown" },
+  { name: "grafana-server", description: "Grafana Dashboard", status: "unknown" },
+  { name: "nginx", description: "Web Server", status: "unknown" },
+  { name: "webmin", description: "Webmin Administration", status: "unknown" },
+];
+
 export function ServiceMonitor() {
-  const { data: metrics, isLoading, error } = useSystemMetrics();
+  const { data: metrics, isLoading, error, refresh } = useSystemMetrics();
   const [retryCount, setRetryCount] = useState(0);
-  
-  // Add console log to see what metrics data contains
-  useEffect(() => {
-    if (metrics) {
-      console.log("ServiceMonitor metrics:", metrics);
-    }
-  }, [metrics]);
   
   // Add additional retry logic for data fetching
   useEffect(() => {
     if (error || (!metrics?.services && !isLoading && retryCount < 3)) {
       const timer = setTimeout(() => {
-        // Force a fetch directly from the API
-        fetch('/api/system/metrics')
-          .then(res => res.json())
-          .then(data => {
-            console.log("Direct API fetch result:", data);
-          })
-          .catch(err => {
-            console.error("Direct API fetch error:", err);
-          });
-
+        refresh(); // Use the refresh function from the hook
         setRetryCount(prev => prev + 1);
       }, 2000); // Retry after 2 seconds
       return () => clearTimeout(timer);
     }
-  }, [metrics, error, isLoading, retryCount]);
+  }, [metrics, error, isLoading, retryCount, refresh]);
 
-  const getServiceIcon = (serviceName: string) => {
-    const lowerName = serviceName.toLowerCase();
-    if (lowerName.includes('mongo')) return Database;
-    if (lowerName.includes('influx')) return Database;
-    if (lowerName.includes('grafana')) return Activity;
-    if (lowerName.includes('nginx')) return Globe;
-    if (lowerName.includes('webmin')) return Server;
-    if (lowerName.includes('spi')) return Cpu;
-    if (lowerName.includes('i2c')) return Cpu;
-    if (lowerName.includes('can')) return Cpu;
-    return Server;
-  };
-
-  const getBadgeColor = (status: string) => {
-    switch(status) {
-      case 'active':
-        return 'bg-green-500';
-      case 'inactive':
-        return 'bg-gray-500';
-      case 'failed':
-        return 'bg-red-500';
-      case 'activating':
-        return 'bg-blue-500';
-      default:
-        return 'bg-amber-500';
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle>System Services</CardTitle>
-          <CardDescription>Status of running services and interfaces</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-4">
-            <RefreshCcw className="h-5 w-5 animate-spin text-gray-400" />
-            <span className="ml-2 text-sm text-gray-400">Loading services...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // If we have metrics but services is undefined, create a dummy empty array to avoid errors
-  const services = metrics && !metrics.services ? [] : metrics?.services || [];
+  // Use actual services data when available, otherwise use placeholders
+  const servicesList = metrics?.services?.length > 0 
+    ? metrics.services 
+    : DEFAULT_SERVICES;
   
-  if (error) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle>System Services</CardTitle>
-          <CardDescription>Status of running services and interfaces</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-gray-500">Error loading service data</div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle>System Services</CardTitle>
-        <CardDescription>Status of running services and interfaces</CardDescription>
+    <Card className="h-full">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">
+          System Services
+        </CardTitle>
+        <div className="flex items-center">
+          {isLoading && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin mr-2" />}
+          <Shield className="h-4 w-4 text-muted-foreground" />
+        </div>
       </CardHeader>
       <CardContent>
-        {services.length === 0 ? (
-          <div className="text-sm text-gray-500">No service data available</div>
-        ) : (
-          <div className="space-y-3">
-            {services.map((service: SystemService) => {
-              const ServiceIcon = getServiceIcon(service.name);
-              const badgeColor = getBadgeColor(service.status);
-              
-              return (
-                <div key={service.name} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-2">
-                    <ServiceIcon className="h-4 w-4 text-blue-400" />
-                    <span className="text-sm font-medium">{service.description || service.name}</span>
-                  </div>
-                  <Badge 
-                    className={`${badgeColor} text-white hover:${badgeColor}`}
-                  >
-                    {service.status === 'active' ? 'Running' : 
-                     service.status === 'activating' ? 'Activating' : 
-                     service.status === 'inactive' ? 'Inactive' : 
-                     service.status === 'failed' ? 'Failed' : 'Unknown'}
-                  </Badge>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="space-y-4">
+          {/* Always show service cards, badges update dynamically */}
+          {servicesList.map(service => (
+            <div 
+              key={service.name}
+              className="flex items-center justify-between bg-background p-3 rounded-lg border"
+            >
+              <div>
+                <p className="text-sm font-medium">{service.name}</p>
+                <p className="text-xs text-muted-foreground">{service.description}</p>
+              </div>
+              <Badge 
+                className={
+                  `${service.status === 'active' ? 'bg-green-500 hover:bg-green-600' :
+                  service.status === 'inactive' ? 'bg-gray-500 hover:bg-gray-600' :
+                  service.status === 'failed' ? 'bg-red-500 hover:bg-red-600' : 
+                  service.status === 'activating' ? 'bg-blue-500 hover:bg-blue-600' :
+                  'bg-amber-500 hover:bg-amber-600'}`
+                }
+              >
+                {service.status}
+              </Badge>
+            </div>
+          ))}
+
+          {/* Show error message only if we've tried multiple times and still have errors */}
+          {error && retryCount >= 3 && (
+            <div className="mt-4 p-2 bg-destructive/10 rounded-md">
+              <div className="flex items-center gap-2 justify-center">
+                <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+                <p className="text-xs text-destructive text-center">
+                  {error?.message || "Connection error"}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
