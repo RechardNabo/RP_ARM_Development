@@ -43,8 +43,10 @@ export function useSystemMetrics() {
       if (!response.ok) {
         throw new Error(`Failed to fetch metrics: ${response.statusText}`)
       }
-      const data = await response.json()
-      setData(data)
+      const responseData = await response.json()
+      // Extract the metrics object from the API response
+      // The API returns { success: true, metrics: {...} }
+      setData(responseData.metrics || responseData)
       setError(null)
     } catch (err: any) {
       console.error('Error fetching system metrics:', err)

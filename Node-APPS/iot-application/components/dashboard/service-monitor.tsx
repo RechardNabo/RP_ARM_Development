@@ -16,10 +16,27 @@ export function ServiceMonitor() {
   const { data: metrics, isLoading, error } = useSystemMetrics();
   const [retryCount, setRetryCount] = useState(0);
   
+  // Add console log to see what metrics data contains
+  useEffect(() => {
+    if (metrics) {
+      console.log("ServiceMonitor metrics:", metrics);
+    }
+  }, [metrics]);
+  
   // Add additional retry logic for data fetching
   useEffect(() => {
     if (error || (!metrics?.services && !isLoading && retryCount < 3)) {
       const timer = setTimeout(() => {
+        // Force a fetch directly from the API
+        fetch('/api/system/metrics')
+          .then(res => res.json())
+          .then(data => {
+            console.log("Direct API fetch result:", data);
+          })
+          .catch(err => {
+            console.error("Direct API fetch error:", err);
+          });
+
         setRetryCount(prev => prev + 1);
       }, 2000); // Retry after 2 seconds
       return () => clearTimeout(timer);
