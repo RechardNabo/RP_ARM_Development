@@ -1,3 +1,5 @@
+"use client"
+
 import { SystemStatus } from "@/components/dashboard/system-status"
 import { DeviceOverview } from "@/components/dashboard/device-overview"
 import { ServiceMonitor } from "@/components/dashboard/service-monitor"
