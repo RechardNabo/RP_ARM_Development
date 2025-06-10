@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Shield, Loader2, AlertCircle } from "lucide-react"
+import { Shield, Loader2, AlertCircle, Database, Server, Activity, Globe, Cpu } from "lucide-react"
 import { useSystemMetrics } from "@/hooks/use-system-metrics"
 import { useState, useEffect } from "react"
 
@@ -25,6 +25,20 @@ const DEFAULT_SERVICES = [
 export function ServiceMonitor() {
   const { data: metrics, isLoading, error, refresh } = useSystemMetrics();
   const [retryCount, setRetryCount] = useState(0);
+  
+  // Function to get the appropriate icon for each service
+  const getServiceIcon = (serviceName: string) => {
+    const lowerName = serviceName.toLowerCase();
+    if (lowerName.includes('mongo')) return Database;
+    if (lowerName.includes('influx')) return Database;
+    if (lowerName.includes('grafana')) return Activity;
+    if (lowerName.includes('nginx')) return Globe;
+    if (lowerName.includes('webmin')) return Server;
+    if (lowerName.includes('spi')) return Cpu;
+    if (lowerName.includes('i2c')) return Cpu;
+    if (lowerName.includes('can')) return Cpu;
+    return Server;
+  };
   
   // Add additional retry logic for data fetching
   useEffect(() => {
@@ -56,28 +70,37 @@ export function ServiceMonitor() {
       <CardContent>
         <div className="space-y-4">
           {/* Always show service cards, badges update dynamically */}
-          {servicesList.map(service => (
-            <div 
-              key={service.name}
-              className="flex items-center justify-between bg-background p-3 rounded-lg border"
-            >
-              <div>
-                <p className="text-sm font-medium">{service.name}</p>
-                <p className="text-xs text-muted-foreground">{service.description}</p>
-              </div>
-              <Badge 
-                className={
-                  `${service.status === 'active' ? 'bg-green-500 hover:bg-green-600' :
-                  service.status === 'inactive' ? 'bg-gray-500 hover:bg-gray-600' :
-                  service.status === 'failed' ? 'bg-red-500 hover:bg-red-600' : 
-                  service.status === 'activating' ? 'bg-blue-500 hover:bg-blue-600' :
-                  'bg-amber-500 hover:bg-amber-600'}`
-                }
+          {servicesList.map(service => {
+            const ServiceIcon = getServiceIcon(service.name);
+            return (
+              <div 
+                key={service.name}
+                className="flex items-center justify-between bg-background p-3 rounded-lg border"
               >
-                {service.status}
-              </Badge>
-            </div>
-          ))}
+                <div className="flex items-center gap-2">
+                  <ServiceIcon className="h-4 w-4 text-blue-400" />
+                  <div>
+                    <p className="text-sm font-medium">{service.name}</p>
+                    <p className="text-xs text-muted-foreground">{service.description}</p>
+                  </div>
+                </div>
+                <Badge 
+                  className={
+                    `${service.status === 'active' ? 'bg-green-500 hover:bg-green-600' :
+                    service.status === 'inactive' ? 'bg-gray-500 hover:bg-gray-600' :
+                    service.status === 'failed' ? 'bg-red-500 hover:bg-red-600' : 
+                    service.status === 'activating' ? 'bg-blue-500 hover:bg-blue-600' :
+                    'bg-amber-500 hover:bg-amber-600'}`
+                  }
+                >
+                  {service.status === 'active' ? 'Running' : 
+                   service.status === 'activating' ? 'Activating' : 
+                   service.status === 'inactive' ? 'Inactive' : 
+                   service.status === 'failed' ? 'Failed' : 'Unknown'}
+                </Badge>
+              </div>
+            );
+          })}
 
           {/* Show error message only if we've tried multiple times and still have errors */}
           {error && retryCount >= 3 && (
