@@ -6,7 +6,10 @@
   "rootMainFiles": [],
   "pages": {
     "/_app": [],
-    "/": []
+    "/": [],
+    "/_error": [],
+    "/_document": []
   },
+  "middleware": {},
   "ampFirstPages": []
 }
