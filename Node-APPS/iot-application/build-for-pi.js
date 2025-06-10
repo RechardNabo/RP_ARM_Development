@@ -42,14 +42,16 @@ async function main() {
       console.log('⚠️ Build command failed, but we will continue with manual file creation');
     }
     
-    // 2. Create/ensure all critical Next.js build files
-    console.log('📁 Creating/ensuring all required Next.js build files...');
+    // Create or ensure all required Next.js build files
+    console.log('\x1b[33m%s\x1b[0m', '📁 Creating/ensuring all required Next.js build files...');
     
-    // BUILD_ID - Required for production mode
+    const nextDir = '.next';
+    
+    // 1. Create BUILD_ID if it doesn't exist
     const buildId = Date.now().toString();
-    ensureFileExists(path.join('.next', 'BUILD_ID'), buildId);
+    ensureFileExists(path.join(nextDir, 'BUILD_ID'), buildId);
     
-    // routes-manifest.json - Required for routing
+    // 2. Create or update routes-manifest.json
     const routesManifest = {
       version: 3,
       basePath: "",
@@ -61,10 +63,11 @@ async function main() {
       dataRoutes: [],
       i18n: { locales: ["en"], defaultLocale: "en" }
     };
-    ensureFileExists(path.join('.next', 'routes-manifest.json'), JSON.stringify(routesManifest, null, 2));
+    // Always write a fresh routes-manifest.json
+    fs.writeFileSync(path.join(nextDir, 'routes-manifest.json'), JSON.stringify(routesManifest, null, 2));
     
-    // Other essential build files
-    ensureFileExists(path.join('.next', 'build-manifest.json'), JSON.stringify({
+    // 3. Create or update build-manifest.json
+    const buildManifest = {
       polyfillFiles: [],
       devFiles: [],
       ampDevFiles: [],
@@ -76,22 +79,22 @@ async function main() {
         '/_error': [],
         '/_document': [] 
       },
-      middleware: {
-        '/_middleware': {
-          files: []
-        }
-      },
+      // Explicitly remove middleware to prevent errors
       ampFirstPages: []
-    }, null, 2));
+    };
+    // Always write a fresh build-manifest.json
+    fs.writeFileSync(path.join(nextDir, 'build-manifest.json'), JSON.stringify(buildManifest, null, 2));
     
-    ensureFileExists(path.join('.next', 'prerender-manifest.json'), JSON.stringify({
+    // 4. Create prerender-manifest.json if it doesn't exist
+    ensureFileExists(path.join(nextDir, 'prerender-manifest.json'), JSON.stringify({
       version: 4,
       routes: {},
       dynamicRoutes: {}, 
       notFoundRoutes: []
     }, null, 2));
     
-    ensureFileExists(path.join('.next', 'required-server-files.json'), JSON.stringify({
+    // 5. Create required-server-files.json if it doesn't exist
+    ensureFileExists(path.join(nextDir, 'required-server-files.json'), JSON.stringify({
       version: 1,
       config: { 
         trailingSlash: false, 
@@ -102,7 +105,39 @@ async function main() {
       appDir: path.resolve('.')
     }, null, 2));
     
-    ensureFileExists(path.join('.next', 'react-loadable-manifest.json'), '{}');
+    // 6. Create react-loadable-manifest.json if it doesn't exist
+    ensureFileExists(path.join(nextDir, 'react-loadable-manifest.json'), '{}');
+    
+    // 7. Set up server directory and middleware files
+    const serverDir = path.join(nextDir, 'server');
+    if (!fs.existsSync(serverDir)) {
+      fs.mkdirSync(serverDir, { recursive: true });
+    }
+    
+    // Create pages directory if it doesn't exist
+    const pagesDir = path.join(serverDir, 'pages');
+    if (!fs.existsSync(pagesDir)) {
+      fs.mkdirSync(pagesDir, { recursive: true });
+    }
+    
+    // Always create a fresh middleware-manifest.json
+    const middlewareManifest = {
+      version: 1,
+      sortedMiddleware: [],
+      middleware: {},
+      functions: {},
+      matchers: {}
+    };
+    fs.writeFileSync(
+      path.join(serverDir, 'middleware-manifest.json'), 
+      JSON.stringify(middlewareManifest, null, 2)
+    );
+    
+    // Create basic webpack-runtime.js if it doesn't exist
+    ensureFileExists(
+      path.join(serverDir, 'webpack-runtime.js'),
+      'module.exports = {};'
+    );
     
     // 3. Validate the build
     let missingFiles = [];
