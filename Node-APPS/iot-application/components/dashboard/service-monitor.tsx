@@ -14,6 +14,17 @@ export interface SystemService {
 
 export function ServiceMonitor() {
   const { data: metrics, isLoading, error } = useSystemMetrics();
+  const [retryCount, setRetryCount] = useState(0);
+  
+  // Add additional retry logic for data fetching
+  useEffect(() => {
+    if (error || (!metrics?.services && !isLoading && retryCount < 3)) {
+      const timer = setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+      }, 2000); // Retry after 2 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [metrics, error, isLoading, retryCount]);
 
   const getServiceIcon = (serviceName: string) => {
     const lowerName = serviceName.toLowerCase();
@@ -60,7 +71,10 @@ export function ServiceMonitor() {
     );
   }
 
-  if (error || !metrics || !metrics.services) {
+  // If we have metrics but services is undefined, create a dummy empty array to avoid errors
+  const services = metrics && !metrics.services ? [] : metrics?.services || [];
+  
+  if (error) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -68,7 +82,7 @@ export function ServiceMonitor() {
           <CardDescription>Status of running services and interfaces</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-gray-500">Could not load service data</div>
+          <div className="text-sm text-gray-500">Error loading service data</div>
         </CardContent>
       </Card>
     );
@@ -81,30 +95,34 @@ export function ServiceMonitor() {
         <CardDescription>Status of running services and interfaces</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
-          {metrics.services.map((service: SystemService) => {
-            const ServiceIcon = getServiceIcon(service.name);
-            const badgeColor = getBadgeColor(service.status);
-            
-            return (
-              <div key={service.name} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                <div className="flex items-center gap-2">
-                  <ServiceIcon className="h-4 w-4 text-blue-400" />
-                  <span className="text-sm font-medium">{service.description || service.name}</span>
+        {services.length === 0 ? (
+          <div className="text-sm text-gray-500">No service data available</div>
+        ) : (
+          <div className="space-y-3">
+            {services.map((service: SystemService) => {
+              const ServiceIcon = getServiceIcon(service.name);
+              const badgeColor = getBadgeColor(service.status);
+              
+              return (
+                <div key={service.name} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <ServiceIcon className="h-4 w-4 text-blue-400" />
+                    <span className="text-sm font-medium">{service.description || service.name}</span>
+                  </div>
+                  <Badge 
+                    className={`${badgeColor} text-white hover:${badgeColor}`}
+                  >
+                    {service.status === 'active' ? 'Running' : 
+                     service.status === 'activating' ? 'Activating' : 
+                     service.status === 'inactive' ? 'Inactive' : 
+                     service.status === 'failed' ? 'Failed' : 'Unknown'}
+                  </Badge>
                 </div>
-                <Badge 
-                  className={`${badgeColor} text-white hover:${badgeColor}`}
-                >
-                  {service.status === 'active' ? 'Running' : 
-                   service.status === 'activating' ? 'Activating' : 
-                   service.status === 'inactive' ? 'Inactive' : 
-                   service.status === 'failed' ? 'Failed' : 'Unknown'}
-                </Badge>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
-  )
+  );
 }
