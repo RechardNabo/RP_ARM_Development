@@ -90,28 +90,26 @@ export function DeviceOverview() {
     count: number | undefined, 
     color: string 
   }) => (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center justify-between hover:bg-accent hover:text-accent-foreground p-2 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Icon className={`h-4 w-4 ${color}`} />
-              <span className="text-sm font-medium">{label}</span>
-            </div>
-            {isLoading ? (
-              <Skeleton className="h-5 w-12 rounded" />
-            ) : (
-              <Badge variant={count && count > 0 ? "outline" : "secondary"}>
-                {count !== undefined ? `${count} device${count !== 1 ? 's' : ''}` : "Unknown"}
-              </Badge>
-            )}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center justify-between hover:bg-accent hover:text-accent-foreground p-2 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Icon className={`h-4 w-4 ${color}`} />
+            <span className="text-sm font-medium">{label}</span>
           </div>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          <p className="text-xs">{getDeviceTooltip(label, count)}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          {isLoading ? (
+            <Skeleton className="h-5 w-12 rounded" />
+          ) : (
+            <Badge variant={count && count > 0 ? "outline" : "secondary"}>
+              {count !== undefined ? `${count} device${count !== 1 ? 's' : ''}` : "Unknown"}
+            </Badge>
+          )}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        <p className="text-xs">{getDeviceTooltip(label, count)}</p>
+      </TooltipContent>
+    </Tooltip>
   )
 
   // Helper function for tooltip content
