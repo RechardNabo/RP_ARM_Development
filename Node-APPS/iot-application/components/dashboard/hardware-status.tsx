@@ -5,7 +5,7 @@ import { RefreshCw, Monitor, CheckCircle, XCircle, Cpu, Radio, Bluetooth, Usb, L
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -110,31 +110,33 @@ export function HardwareStatus() {
   // Helper function to render status indicator
   const StatusIndicator = ({ available, label, icon: Icon, details }: { available: boolean, label: string, icon: any, details?: string }) => {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center justify-between p-2 rounded-lg border hover:bg-accent hover:text-accent-foreground">
-            <div className="flex items-center space-x-3">
-              <Icon className={`h-5 w-5 ${available ? 'text-green-500' : 'text-red-500'}`} />
-              <span>{label}</span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center justify-between p-2 rounded-lg border hover:bg-accent hover:text-accent-foreground">
+              <div className="flex items-center space-x-3">
+                <Icon className={`h-5 w-5 ${available ? 'text-green-500' : 'text-red-500'}`} />
+                <span>{label}</span>
+              </div>
+              {details ? (
+                <Badge variant={available ? 'outline' : 'destructive'} className="ml-2">
+                  {details}
+                </Badge>
+              ) : (
+                <div className={`h-2 w-2 rounded-full ${available ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              )}
             </div>
-            {details ? (
-              <Badge variant={available ? 'outline' : 'destructive'} className="ml-2">
-                {details}
-              </Badge>
-            ) : (
-              <div className={`h-2 w-2 rounded-full ${available ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            )}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="max-w-sm">
-          <p>
-            {available
-              ? `${label} is available and working properly.`
-              : `${label} is not available or not working properly.`}
-          </p>
-          {details && <p className="text-xs opacity-80 mt-1">{details}</p>}
-        </TooltipContent>
-      </Tooltip>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="max-w-sm">
+            <p>
+              {available
+                ? `${label} is available and working properly.`
+                : `${label} is not available or not working properly.`}
+            </p>
+            {details && <p className="text-xs opacity-80 mt-1">{details}</p>}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
