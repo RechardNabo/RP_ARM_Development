@@ -1,6 +1,9 @@
 // Hardware manager service for the CM4-IO-WIRELESS-BASE
 import { getCANInterface, type CANInterface } from "./can-interface"
 import { getWiFiInterface, type WiFiInterface } from "./wifi-interface"
+import { getI2CInterface, type I2CInterface } from "./i2c-interface"
+import { getSPIInterface, type SPIInterface } from "./spi-interface"
+import { getBluetoothInterface, type BluetoothInterface } from "./bluetooth-interface"
 import { getMongoDBService, type MongoDBService } from "../database/mongodb-service"
 import { getInfluxDBService, type InfluxDBService } from "../database/influxdb-service"
 import { getGrafanaService, type GrafanaService } from "../integrations/grafana-service"
@@ -13,6 +16,20 @@ export interface HardwareStatus {
   wifi: {
     initialized: boolean
     status?: any
+  }
+  i2c: {
+    available: boolean
+    buses: string[]
+    devices?: { [bus: string]: string[] }
+  }
+  spi: {
+    available: boolean
+    devices: string[]
+  }
+  bluetooth: {
+    available: boolean
+    powered: boolean
+    controllerName?: string
   }
   mongodb: {
     connected: boolean
@@ -29,6 +46,9 @@ export class HardwareManager {
   private static instance: HardwareManager
   private canInterface: CANInterface
   private wifiInterface: WiFiInterface
+  private i2cInterface: I2CInterface
+  private spiInterface: SPIInterface
+  private bluetoothInterface: BluetoothInterface
   private mongoDBService: MongoDBService
   private influxDBService: InfluxDBService
   private grafanaService: GrafanaService
@@ -38,6 +58,9 @@ export class HardwareManager {
   private constructor() {
     this.canInterface = getCANInterface()
     this.wifiInterface = getWiFiInterface()
+    this.i2cInterface = getI2CInterface()
+    this.spiInterface = getSPIInterface()
+    this.bluetoothInterface = getBluetoothInterface()
     this.mongoDBService = getMongoDBService()
     this.influxDBService = getInfluxDBService()
     this.grafanaService = getGrafanaService()
@@ -76,6 +99,18 @@ export class HardwareManager {
       // Initialize WiFi interface
       const wifiInitialized = await this.wifiInterface.initialize()
       console.log(`WiFi interface initialization: ${wifiInitialized ? "SUCCESS" : "FAILED"}`)
+      
+      // Initialize I2C interface
+      const i2cInitialized = await this.i2cInterface.initialize()
+      console.log(`I2C interface initialization: ${i2cInitialized ? "SUCCESS" : "FAILED"}`)
+      
+      // Initialize SPI interface
+      const spiInitialized = await this.spiInterface.initialize()
+      console.log(`SPI interface initialization: ${spiInitialized ? "SUCCESS" : "FAILED"}`)
+      
+      // Initialize Bluetooth interface
+      const bluetoothInitialized = await this.bluetoothInterface.initialize()
+      console.log(`Bluetooth interface initialization: ${bluetoothInitialized ? "SUCCESS" : "FAILED"}`)
 
       // Connect to MongoDB
       const mongoConnected = await this.mongoDBService.connect()
@@ -126,6 +161,15 @@ export class HardwareManager {
 
       // Disconnect WiFi
       await this.wifiInterface.disconnect()
+      
+      // Shutdown I2C interface
+      await this.i2cInterface.shutdown()
+      
+      // Shutdown SPI interface
+      await this.spiInterface.shutdown()
+      
+      // Shutdown Bluetooth interface
+      await this.bluetoothInterface.shutdown()
 
       // Disconnect from MongoDB
       await this.mongoDBService.disconnect()
@@ -170,6 +214,20 @@ export class HardwareManager {
               bitrate: 300,
             },
           },
+          i2c: {
+            available: true,
+            buses: ["i2c-1", "i2c-2"],
+            devices: { "i2c-1": ["0x20", "0x21"], "i2c-2": [] },
+          },
+          spi: {
+            available: true,
+            devices: ["spidev0.0", "spidev0.1"],
+          },
+          bluetooth: {
+            available: true,
+            powered: true,
+            controllerName: "Preview Bluetooth",
+          },
           mongodb: { connected: true },
           influxdb: { connected: true },
           grafana: { connected: true },
@@ -178,6 +236,9 @@ export class HardwareManager {
 
       const canStats = await this.canInterface.getStats()
       const wifiStatus = await this.wifiInterface.getStatus()
+      const i2cStatus = await this.i2cInterface.getStatus()
+      const spiStatus = await this.spiInterface.getStatus()
+      const bluetoothStatus = await this.bluetoothInterface.getStatus()
 
       return {
         can: {
@@ -187,6 +248,20 @@ export class HardwareManager {
         wifi: {
           initialized: this.wifiInterface.isInterfaceInitialized(),
           status: wifiStatus,
+        },
+        i2c: {
+          available: i2cStatus.available,
+          buses: i2cStatus.buses,
+          devices: i2cStatus.devices,
+        },
+        spi: {
+          available: spiStatus.available,
+          devices: spiStatus.devices,
+        },
+        bluetooth: {
+          available: bluetoothStatus.available,
+          powered: bluetoothStatus.powered,
+          controllerName: bluetoothStatus.controllerName,
         },
         mongodb: {
           connected: this.mongoDBService.isConnectedToDatabase(),
@@ -217,6 +292,19 @@ export class HardwareManager {
             signalStrength: -65,
           },
         },
+        i2c: {
+          available: false,
+          buses: [],
+          devices: {},
+        },
+        spi: {
+          available: false,
+          devices: [],
+        },
+        bluetooth: {
+          available: false,
+          powered: false,
+        },
         mongodb: { connected: true },
         influxdb: { connected: true },
         grafana: { connected: true },
@@ -230,6 +318,18 @@ export class HardwareManager {
 
   public getWiFiInterface(): WiFiInterface {
     return this.wifiInterface
+  }
+
+  public getI2CInterface(): I2CInterface {
+    return this.i2cInterface
+  }
+
+  public getSPIInterface(): SPIInterface {
+    return this.spiInterface
+  }
+
+  public getBluetoothInterface(): BluetoothInterface {
+    return this.bluetoothInterface
   }
 
   public getMongoDBService(): MongoDBService {
