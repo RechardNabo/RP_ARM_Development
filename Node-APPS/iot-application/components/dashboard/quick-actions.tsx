@@ -30,21 +30,32 @@ export function QuickActions() {
     setIsRefreshing(true)
 
     try {
-      // In a real implementation, this would fetch fresh data
-      // For now, we'll simulate a refresh with a timeout
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Call our API endpoint to refresh all data
+      const response = await fetch('/api/system/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to refresh data')
+      }
 
       // Force a refresh of the current page
       router.refresh()
 
       toast({
         title: "Data Refreshed",
-        description: "All dashboard data has been updated.",
+        description: `Dashboard data has been updated: ${result.refreshed?.join(', ')}.`,
       })
     } catch (error) {
+      console.error('Error refreshing data:', error)
       toast({
         title: "Refresh Failed",
-        description: "There was an error refreshing the data.",
+        description: error instanceof Error ? error.message : "There was an error refreshing the data.",
         variant: "destructive",
       })
     } finally {
@@ -111,20 +122,32 @@ export function QuickActions() {
     setIsClearing(true)
 
     try {
-      // Simulate clearing alerts with a timeout
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Call our API endpoint to clear all alerts
+      const response = await fetch('/api/alerts/clear', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to clear alerts')
+      }
 
       toast({
         title: "Alerts Cleared",
-        description: "All system alerts have been cleared.",
+        description: `${result.count} system ${result.count === 1 ? 'alert has' : 'alerts have'} been cleared.`,
       })
 
       // Force a refresh of the current page to update the UI
       router.refresh()
     } catch (error) {
+      console.error('Error clearing alerts:', error)
       toast({
         title: "Clear Failed",
-        description: "There was an error clearing the alerts.",
+        description: error instanceof Error ? error.message : "There was an error clearing the alerts.",
         variant: "destructive",
       })
     } finally {
@@ -137,34 +160,54 @@ export function QuickActions() {
     setIsRestarting(true)
 
     try {
-      // Get the service monitor instance
-      const serviceMonitor = getServiceMonitor()
-
-      // Simulate restarting services
+      // List of services to restart
+      const services = ["mongodb", "influxd", "grafana-server", "nginx", "webmin"]
+      
       toast({
         title: "Restarting Services",
         description: "Attempting to restart all system services...",
       })
 
-      // Restart each service with a delay between them
-      const services = ["mongodb", "influxd", "grafana-server", "nginx", "webmin"]
+      // Call our API endpoint to restart services
+      const response = await fetch('/api/services/restart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ services }),
+      })
 
-      for (const service of services) {
-        await serviceMonitor.restartService(service)
-        await new Promise((resolve) => setTimeout(resolve, 500))
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to restart services')
       }
 
-      toast({
-        title: "Services Restarted",
-        description: "All system services have been restarted successfully.",
-      })
+      // Check if any services failed to restart
+      const failedServices = result.results ? result.results
+        .filter((r: { success: boolean; service: string }) => !r.success)
+        .map((r: { service: string }) => r.service) : []
+      
+      if (failedServices.length > 0) {
+        toast({
+          title: "Partial Service Restart",
+          description: `Some services failed to restart: ${failedServices.join(', ')}`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Services Restarted",
+          description: "All system services have been restarted successfully.",
+        })
+      }
 
       // Force a refresh of the current page to update the UI
       router.refresh()
     } catch (error) {
+      console.error('Error restarting services:', error)
       toast({
         title: "Restart Failed",
-        description: "There was an error restarting the services.",
+        description: error instanceof Error ? error.message : "There was an error restarting the services.",
         variant: "destructive",
       })
     } finally {

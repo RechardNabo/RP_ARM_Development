@@ -174,15 +174,13 @@ export class ServiceMonitor {
 
   getInterfaceStatus(name?: string): SystemInterface | SystemInterface[] {
     if (name) {
-      return (
-        this.interfaces.find((iface) => iface.name === name) ||
-        ({
+      return this.interfaces.find((iface) => iface.name === name) ||
+        {
           name,
           type: "gpio",
-          status: "unknown",
+          status: "error", // Changed from "unknown" to "error" to match SystemInterface type
           lastUpdated: Date.now(),
-        } as SystemInterface)
-      )
+        }
     }
 
     return [...this.interfaces]
@@ -253,7 +251,7 @@ export class ServiceMonitor {
     })
   }
 
-  private updateServiceStatus(): void {
+  updateServiceStatus(force: boolean = false): void {
     // Simulate updating service status
     this.services.forEach((service) => {
       // Randomly update CPU and memory usage
@@ -272,7 +270,7 @@ export class ServiceMonitor {
     })
   }
 
-  private updateInterfaceStatus(): void {
+  updateInterfaceStatus(force: boolean = false): void {
     // Simulate updating interface status
     this.interfaces.forEach((iface) => {
       // Occasionally change status
