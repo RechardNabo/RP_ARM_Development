@@ -35,7 +35,7 @@ class BluetoothInterfaceImpl implements BluetoothInterface {
 
   public async initialize(): Promise<boolean> {
     try {
-      console.log('Initializing Bluetooth interface')
+      // console.log('Initializing Bluetooth interface')
       
       // Check if Bluetooth is available
       const controllerInfo = await this.getControllerInfo()

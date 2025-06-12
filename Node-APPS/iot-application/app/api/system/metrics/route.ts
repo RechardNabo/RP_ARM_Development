@@ -37,8 +37,8 @@ if (typeof process !== 'undefined') {
 
 // Helper function to determine if we're in preview mode
 function isPreviewMode(): boolean {
-  // @ts-ignore - Process will be available at runtime
-  const processEnv = typeof process !== "undefined" ? process.env : {};
+  // Process will be available at runtime
+  const processEnv = typeof process !== "undefined" ? process.env as Record<string, string | undefined> : {};
   
   return (
     processEnv.VERCEL_ENV === "preview" ||
@@ -461,7 +461,7 @@ async function getSystemServices(): Promise<SystemService[]> {
         })
       } catch (error) {
         // If command fails, assume service is inactive or doesn't exist
-        console.log(`Error checking service ${serviceName}:`, error)
+        // console.log(`Error checking service ${serviceName}:`, error)
         services.push({
           name: serviceName,
           status: 'unknown',

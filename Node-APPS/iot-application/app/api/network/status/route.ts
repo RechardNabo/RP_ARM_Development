@@ -130,7 +130,7 @@ async function getEthernetStatus() {
       speed
     }
   } catch (error) {
-    console.error('Error getting Ethernet status:', error)
+    // console.error('Error getting Ethernet status:', error)
     return { connected: false }
   }
 }
