@@ -140,8 +140,11 @@ export function QuickActions() {
         title: "Alerts Cleared",
         description: `${result.count} system ${result.count === 1 ? 'alert has' : 'alerts have'} been cleared.`,
       })
-
-      // Force a refresh of the current page to update the UI
+      
+      // Dispatch a custom event to notify the Recent Alerts component
+      window.dispatchEvent(new CustomEvent('alertsCleared'))
+      
+      // Force a refresh of the current page to update other UI components
       router.refresh()
     } catch (error) {
       console.error('Error clearing alerts:', error)
