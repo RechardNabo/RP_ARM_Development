@@ -35,10 +35,10 @@ A Next.js (15.2.4) IoT dashboard application with React 19 for monitoring and co
 
 2. **Deployment (Raspberry Pi)**
    ```bash
+   cd ~/Development_RP3_c
    git pull origin development
-   npm install
-   npm run build
-   PORT=3001 npm start
+   cd Node-APPS/iot-application
+   sudo pm2 restart 2
    ```
 
 ## API Endpoints
