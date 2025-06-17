@@ -8,7 +8,7 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 
 // Memory optimization for Raspberry Pi
-process.env.NODE_OPTIONS = '--max-old-space-size=512';
+process.env.NODE_OPTIONS = '--max-old-space-size=248';
 
 app.prepare().then(() => {
   createServer((req, res) => {
