@@ -11,7 +11,7 @@ const handle = app.getRequestHandler();
 process.env.NODE_OPTIONS = '--max-old-space-size=248';
 
 app.prepare().then(() => {
-  createServer((req, res) => {
+  const server = createServer((req, res) => {
     handle(req, res);
   }).listen(port, (err) => {
     if (err) throw err;
