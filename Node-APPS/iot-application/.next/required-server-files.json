@@ -99,7 +99,9 @@
     "outputFileTracingRoot": "C:\\Users\\Mtlantla\\Desktop\\EmberCore\\Dev_RP3_c\\Node-APPS\\iot-application",
     "allowedDevOrigins": [
       "192.168.18.9",
-      {}
+      "192.168.1.0",
+      "192.168.2.0",
+      "192.168.0.0"
     ],
     "experimental": {
       "allowedDevOrigins": [],
