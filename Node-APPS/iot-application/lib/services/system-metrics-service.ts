@@ -5,7 +5,7 @@ export class SystemMetricsService {
   private metrics: SystemMetrics | null = null
   // Using a generic type instead of NodeJS namespace
   private refreshInterval: any = null
-  private refreshRate: number = 500 // 500ms default refresh rate
+  private refreshRate: number = 1000 // 1000ms (1 second) default refresh rate
   private listeners: Array<(metrics: SystemMetrics) => void> = []
 
   private constructor() {
@@ -29,9 +29,9 @@ export class SystemMetricsService {
 
   /**
    * Start fetching metrics at the specified refresh rate
-   * @param refreshRate Optional refresh rate in milliseconds (default: 500ms)
+   * @param refreshRate Optional refresh rate in milliseconds (default: 1000ms)
    */
-  public startMetricsPolling(refreshRate: number = 500): void {
+  public startMetricsPolling(refreshRate: number = 1000): void {
     this.stopMetricsPolling() // Stop any existing polling
     
     this.refreshRate = refreshRate
@@ -59,8 +59,9 @@ export class SystemMetricsService {
 
   /**
    * Fetch metrics from the API
+   * @param retryCount Optional retry attempt counter
    */
-  private async fetchMetrics(): Promise<void> {
+  private async fetchMetrics(retryCount: number = 0): Promise<void> {
     try {
       const response = await fetch('/api/system/metrics', {
         method: 'GET',
@@ -85,6 +86,12 @@ export class SystemMetricsService {
       }
     } catch (error) {
       console.error('Error fetching system metrics:', error)
+      
+      // Add retry logic with backoff
+      if (retryCount < 3) {
+        const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 8000)
+        setTimeout(() => this.fetchMetrics(retryCount + 1), backoffTime)
+      }
     }
   }
 
