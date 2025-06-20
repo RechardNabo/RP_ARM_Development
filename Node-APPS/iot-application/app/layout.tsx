@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <title>CM4 IoT Management Platform</title>
         <meta name="description" content="Advanced IoT management platform for CM4-IO-WIRELESS-BASE" />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <TooltipProvider>
             <div className="flex min-h-screen flex-col">
