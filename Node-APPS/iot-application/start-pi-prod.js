@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === undefined) {
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
-// Create a custom logger that filters out frequent system metrics requests and Bluetooth errors
+// Create a custom logger that filters out frequent API requests and error messages
 const originalConsoleLog = console.log;
 console.log = function(...args) {
   // Skip logging if no arguments
@@ -28,12 +28,21 @@ console.log = function(...args) {
   if (typeof args[0] === 'string') {
     const message = args[0];
     
-    // Filter out system metrics API logs
-    if (message.match(/GET \/api\/system\/metrics.*\d+ms/)) {
+    // Filter out API endpoint logs that flood the terminal
+    if (
+      // System metrics API calls
+      message.match(/GET \/api\/system\/metrics.*\d+ms/) ||
+      // Hardware status API calls
+      message.match(/GET \/api\/hardware\/status.*\d+ms/) ||
+      // Network status API calls
+      message.match(/GET \/api\/network\/status.*\d+ms/) ||
+      // Any other API calls that are frequent
+      message.match(/GET \/api\/[a-zA-Z\/]+.*\d+ms/)
+    ) {
       return; // Skip logging this message
     }
     
-    // Filter out Bluetooth error messages
+    // Filter out common error messages
     if (message.includes('No Bluetooth controller found') || 
         message.includes('Bluetooth interface initialization')) {
       return; // Skip logging this message
