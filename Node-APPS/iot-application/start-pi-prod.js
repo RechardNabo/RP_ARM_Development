@@ -4,11 +4,19 @@ const next = require('next');
 // Configuration
 const port = process.env.PORT || 3001;
 const dev = process.env.NODE_ENV !== 'production';
+
+// Performance and memory optimizations for Raspberry Pi
+process.env.NODE_OPTIONS = '--max-old-space-size=800'; // Increased for better compilation performance
+process.env.NEXT_TELEMETRY_DISABLED = '1'; // Disable telemetry
+process.env.NEXT_WEBPACK_WORKERS = '1'; // Limit webpack workers
+
+// Use production mode to skip dev optimizations if not explicitly in dev mode
+if (process.env.NODE_ENV === undefined) {
+  process.env.NODE_ENV = 'production';
+}
+
 const app = next({ dev });
 const handle = app.getRequestHandler();
-
-// Memory optimization for Raspberry Pi
-process.env.NODE_OPTIONS = '--max-old-space-size=248';
 
 // Create a custom logger that filters out frequent system metrics requests and Bluetooth errors
 const originalConsoleLog = console.log;
