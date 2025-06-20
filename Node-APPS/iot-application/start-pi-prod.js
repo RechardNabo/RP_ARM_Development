@@ -10,15 +10,28 @@ const handle = app.getRequestHandler();
 // Memory optimization for Raspberry Pi
 process.env.NODE_OPTIONS = '--max-old-space-size=248';
 
-// Create a custom logger that filters out frequent system metrics requests
+// Create a custom logger that filters out frequent system metrics requests and Bluetooth errors
 const originalConsoleLog = console.log;
 console.log = function(...args) {
-  // Filter out system metrics API logs
-  if (args.length > 0 && typeof args[0] === 'string') {
-    if (args[0].includes('GET /api/system/metrics')) {
+  // Skip logging if no arguments
+  if (args.length === 0) return originalConsoleLog.apply(console, []);
+  
+  // Check if it's a string message
+  if (typeof args[0] === 'string') {
+    const message = args[0];
+    
+    // Filter out system metrics API logs
+    if (message.match(/GET \/api\/system\/metrics.*\d+ms/)) {
+      return; // Skip logging this message
+    }
+    
+    // Filter out Bluetooth error messages
+    if (message.includes('No Bluetooth controller found') || 
+        message.includes('Bluetooth interface initialization')) {
       return; // Skip logging this message
     }
   }
+  
   // Call the original console.log with the arguments
   originalConsoleLog.apply(console, args);
 };
