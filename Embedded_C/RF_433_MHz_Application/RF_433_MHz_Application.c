@@ -7,6 +7,7 @@
 #include <time.h>
 #include <pigpio.h>
 #include <signal.h>
+#include <ctype.h>
 
 // Configuration
 #define RF_RX_PIN 26                    // GPIO pin for RF 433MHz receiver
@@ -25,6 +26,7 @@ volatile bool running = true;
 int pulse_length = DEFAULT_PULSE_LENGTH;
 bool debug_mode = false;
 bool verbose_mode = false;
+bool ascii_mode = true;                 // Enable ASCII decoding by default
 
 // Function to delay microseconds
 void delay_us(int microseconds) {
@@ -48,17 +50,84 @@ void signal_handler(int sig) {
     running = false;
 }
 
-// Remove unused transmit functions since we only have a receiver
-// Function to send sync signal - REMOVED (transmitter not connected)
-// Function to send a bit - REMOVED (transmitter not connected)
-// Function to convert decimal to binary - REMOVED (not needed for receiver only)
+// Function to convert binary string to ASCII text
+void binary_to_ascii(const char* binary_str, int bit_length) {
+    printf("  ASCII decoding attempt:\n");
+    
+    // Try 8-bit ASCII chunks
+    if (bit_length >= 8) {
+        printf("    8-bit ASCII: \"");
+        for (int i = 0; i <= bit_length - 8; i += 8) {
+            char byte_str[9] = {0};
+            strncpy(byte_str, binary_str + i, 8);
+            byte_str[8] = '\0';
+            
+            unsigned char ascii_char = (unsigned char)strtoul(byte_str, NULL, 2);
+            
+            if (ascii_char >= 32 && ascii_char <= 126) {
+                printf("%c", ascii_char);
+            } else if (ascii_char == 10) {
+                printf("\\n");
+            } else if (ascii_char == 13) {
+                printf("\\r");
+            } else if (ascii_char == 9) {
+                printf("\\t");
+            } else if (ascii_char == 0) {
+                printf("\\0");
+            } else {
+                printf("\\x%02X", ascii_char);
+            }
+        }
+        printf("\"\n");
+    }
+    
+    // Try 7-bit ASCII chunks
+    if (bit_length >= 7) {
+        printf("    7-bit ASCII: \"");
+        for (int i = 0; i <= bit_length - 7; i += 7) {
+            char byte_str[8] = {0};
+            strncpy(byte_str, binary_str + i, 7);
+            byte_str[7] = '\0';
+            
+            unsigned char ascii_char = (unsigned char)strtoul(byte_str, NULL, 2);
+            
+            if (ascii_char >= 32 && ascii_char <= 126) {
+                printf("%c", ascii_char);
+            } else {
+                printf(".");
+            }
+        }
+        printf("\"\n");
+    }
+    
+    // Try interpreting as packed decimal (BCD)
+    printf("    BCD (4-bit): ");
+    for (int i = 0; i <= bit_length - 4; i += 4) {
+        char nibble_str[5] = {0};
+        strncpy(nibble_str, binary_str + i, 4);
+        nibble_str[4] = '\0';
+        unsigned int nibble_val = strtoul(nibble_str, NULL, 2);
+        
+        if (nibble_val <= 9) {
+            printf("%d", nibble_val);
+        } else {
+            printf("X");
+        }
+    }
+    printf("\n");
+}
 
-// Function to decode received RF signal timing
+// Function to decode received RF signal timing (KEEPING ORIGINAL LOGIC)
 void decode_rf_signal(uint32_t duration, int level) {
     static uint32_t code_buffer[MAX_CODE_LENGTH * 2]; // Store pulse durations
     static int pulse_count = 0;
     static bool receiving = false;
     static uint32_t last_long_pause = 0;
+    
+    // Debug output for pulse detection
+    if (debug_mode) {
+        printf("  Pulse: level=%d, duration=%u us\n", level, duration);
+    }
     
     // Detect start of transmission (long pause followed by signal)
     if (level == 1 && duration > pulse_length * 20) {
@@ -66,6 +135,9 @@ void decode_rf_signal(uint32_t duration, int level) {
         receiving = true;
         last_long_pause = duration;
         memset(code_buffer, 0, sizeof(code_buffer));
+        if (debug_mode) {
+            printf("  Start of transmission detected (sync: %u us)\n", duration);
+        }
         return;
     }
     
@@ -79,17 +151,28 @@ void decode_rf_signal(uint32_t duration, int level) {
             char decoded_bits[MAX_CODE_LENGTH + 1] = {0};
             int bit_index = 0;
             
+            if (debug_mode) {
+                printf("  Processing %d pulses:\n", pulse_count);
+            }
+            
             // Process pairs of pulses (high/low) to determine bits
             for (int i = 0; i < pulse_count - 1 && bit_index < MAX_CODE_LENGTH; i += 2) {
                 uint32_t high_duration = code_buffer[i];
                 uint32_t low_duration = code_buffer[i + 1];
                 
+                if (debug_mode) {
+                    printf("    Pulse pair %d: H=%u, L=%u", i/2, high_duration, low_duration);
+                }
+                
                 // Determine bit based on pulse durations
                 if (high_duration < pulse_length * 2 && low_duration > pulse_length * 2) {
                     decoded_bits[bit_index] = '0'; // Short high, long low = 0
+                    if (debug_mode) printf(" -> 0\n");
                 } else if (high_duration > pulse_length * 2 && low_duration < pulse_length * 2) {
                     decoded_bits[bit_index] = '1'; // Long high, short low = 1
+                    if (debug_mode) printf(" -> 1\n");
                 } else {
+                    if (debug_mode) printf(" -> invalid\n");
                     continue; // Invalid timing, skip
                 }
                 bit_index++;
@@ -102,14 +185,26 @@ void decode_rf_signal(uint32_t duration, int level) {
                 if (received_code > 0) {
                     time_t now = time(NULL);
                     struct tm *local_time = localtime(&now);
-                    printf("[%02d:%02d:%02d] RF Code Received: %lu (binary: %s, %d bits)\n", 
+                    
+                    printf("\n[%02d:%02d:%02d] RF Code Received: %lu (binary: %s, %d bits)\n", 
                            local_time->tm_hour, local_time->tm_min, local_time->tm_sec,
                            received_code, decoded_bits, bit_index);
+                    
+                    printf("  Hexadecimal: 0x%lX\n", received_code);
                     
                     // Print pulse analysis for debugging
                     printf("  Pulse analysis: %d total pulses, sync pause: %u us\n", 
                            pulse_count, last_long_pause);
+                    
+                    // Add ASCII decoding
+                    if (ascii_mode) {
+                        binary_to_ascii(decoded_bits, bit_index);
+                    }
+                    
+                    printf("\n");
                 }
+            } else if (debug_mode) {
+                printf("  Code too short: only %d bits decoded\n", bit_index);
             }
             
             receiving = false;
@@ -118,7 +213,7 @@ void decode_rf_signal(uint32_t duration, int level) {
     }
 }
 
-// Callback function for RF receiver
+// Callback function for RF receiver (KEEPING ORIGINAL)
 void rf_rx_callback(int gpio, int level, uint32_t tick) {
     static uint32_t last_tick = 0;
     static uint32_t last_duration = 0;
@@ -140,7 +235,7 @@ void rf_rx_callback(int gpio, int level, uint32_t tick) {
     decode_rf_signal(duration, level);
 }
 
-// Function to setup RF receiver
+// Function to setup RF receiver (KEEPING ORIGINAL)
 void setup_receiver() {
     printf("Setting up RF 433MHz receiver on GPIO %d\n", RF_RX_PIN);
     gpioSetMode(RF_RX_PIN, PI_INPUT);
@@ -154,29 +249,30 @@ void setup_receiver() {
 
 // Function to print usage information
 void print_usage(const char* program_name) {
-    printf("RF 433MHz Receiver Application\n");
-    printf("===============================\n");
+    printf("RF 433MHz Receiver with ASCII Decoding\n");
+    printf("======================================\n");
     printf("Usage: %s [OPTIONS]\n", program_name);
     printf("Options:\n");
     printf("  -p PULSE    Expected pulse length in microseconds (default: %d)\n", DEFAULT_PULSE_LENGTH);
     printf("  -d          Enable debug mode for detailed pulse analysis\n");
     printf("  -v          Verbose output\n");
+    printf("  -a          Enable ASCII decoding (default: enabled)\n");
+    printf("  -n          Disable ASCII decoding (numbers only)\n");
     printf("  -h          Show this help message\n");
     printf("\nThis application listens for RF 433MHz signals on GPIO %d\n", RF_RX_PIN);
     printf("Press Ctrl+C to exit.\n");
     printf("\nExamples:\n");
-    printf("  %s                   # Listen with default settings\n", program_name);
+    printf("  %s                   # Listen with ASCII decoding\n", program_name);
     printf("  %s -p 400            # Listen with 400us pulse length\n", program_name);
     printf("  %s -d -v             # Listen with debug and verbose output\n", program_name);
+    printf("  %s -n                # Numbers only (no ASCII decoding)\n", program_name);
 }
 
 int main(int argc, char *argv[]) {
-    bool debug_mode = false;
-    bool verbose_mode = false;
     int opt;
     
     // Parse command line arguments
-    while ((opt = getopt(argc, argv, "p:dvh")) != -1) {
+    while ((opt = getopt(argc, argv, "p:dvahn")) != -1) {
         switch (opt) {
             case 'p':
                 pulse_length = atoi(optarg);
@@ -190,6 +286,12 @@ int main(int argc, char *argv[]) {
             case 'v':
                 verbose_mode = true;
                 break;
+            case 'a':
+                ascii_mode = true;
+                break;
+            case 'n':
+                ascii_mode = false;
+                break;
             case 'h':
                 print_usage(argv[0]);
                 return 0;
@@ -199,8 +301,7 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    // Initialize pigpio library with custom port
-    // Set pigpio to use a different port (default is 8888)
+    // Initialize pigpio library with custom port (KEEPING ORIGINAL LOGIC)
     gpioCfgSocketPort(8889); // Use port 8889 instead of 8888
     
     int pigpio_result = gpioInitialise();
@@ -226,12 +327,13 @@ int main(int argc, char *argv[]) {
         printf("Successfully initialized pigpio library on port 8889\n");
     }
     
-    printf("RF 433MHz Receiver Application Starting\n");
+    printf("RF 433MHz Receiver with ASCII Decoding\n");
     printf("======================================\n");
     printf("GPIO Pin: %d\n", RF_RX_PIN);
     printf("Expected pulse length: %d microseconds\n", pulse_length);
     printf("Debug mode: %s\n", debug_mode ? "Enabled" : "Disabled");
     printf("Verbose mode: %s\n", verbose_mode ? "Enabled" : "Disabled");
+    printf("ASCII decoding: %s\n", ascii_mode ? "Enabled" : "Disabled");
     printf("======================================\n\n");
     
     // Setup signal handlers for clean exit
@@ -244,7 +346,7 @@ int main(int argc, char *argv[]) {
     printf("Monitoring RF 433MHz signals...\n");
     printf("Press Ctrl+C to exit.\n\n");
     
-    // Main loop - just keep the program running
+    // Main loop - just keep the program running (KEEPING ORIGINAL)
     while (running) {
         delay_ms(100); // Small delay to prevent CPU hogging
         
