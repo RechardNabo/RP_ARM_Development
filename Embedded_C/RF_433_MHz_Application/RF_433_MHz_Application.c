@@ -7,13 +7,15 @@
 #include <time.h>
 #include <pigpio.h>
 #include <signal.h>
+#include <getopt.h>
 #include <ctype.h>
 
 // Configuration
 #define RF_RX_PIN 26                    // GPIO pin for RF 433MHz receiver
 #define DEFAULT_BAUD_RATE 2000          // Default baud rate (must match PIC32MX sender)
-#define DEFAULT_PULSE_LENGTH 500        // Default pulse length in microseconds (1000000/baud_rate)
+#define BIT_DURATION 500                // Bit duration in microseconds (1000000/baud_rate)
 #define MAX_MESSAGE_LEN 128             // Maximum message length
+#define SAMPLE_TOLERANCE 150            // Tolerance for bit timing in microseconds
 
 // Protocol constants (matching PIC32MX RF transmitter)
 #define RF_PREAMBLE_LENGTH 36           // 36 alternating bits
@@ -572,20 +574,226 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-// Function prototypes
-void delay_us(int microseconds);
-void delay_ms(int milliseconds);
-void signal_handler(int sig);
-bool detect_preamble(int rx_pin);
-bool detect_start_symbol(int rx_pin);
-uint8_t receive_byte(int rx_pin);
-uint8_t receive_manchester_byte(int rx_pin);
-uint8_t receive_4to6_encoded_byte(int rx_pin);
-uint16_t calculate_crc16(const uint8_t* data, uint8_t length);
-bool receive_basic_ascii_message(int rx_pin, char* message, int max_length);
-bool receive_structured_protocol_message(int rx_pin, char* message, int max_length);
-bool receive_manchester_message(int rx_pin, char* message, int max_length);
-void print_usage(char* program_name);
+// Main function 
+int main(int argc, char *argv[]) {
+    int rx_pin = RF_RX_PIN;
+    bool verbose_mode = false;
+    bool debug_mode = false;
+    int opt;
+    
+    // Parse command line arguments
+    while ((opt = getopt(argc, argv, "p:dvh")) != -1) {
+        switch (opt) {
+            case 'p':
+                rx_pin = atoi(optarg);
+                break;
+            case 'd':
+                debug_mode = true;
+                break;
+            case 'v':
+                verbose_mode = true;
+                break;
+            case 'h':
+            default:
+                printf("Usage: %s [options]\n", argv[0]);
+                printf("Options:\n");
+                printf("  -p PIN    : GPIO pin number for RF receiver (default: %d)\n", RF_RX_PIN);
+                printf("  -d        : Enable debug output\n");
+                printf("  -v        : Verbose output\n");
+                printf("  -h        : Show this help\n");
+                return (opt == 'h') ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
+    }
+    
+    // Print application information
+    printf("PIC32MX RF 433MHz Receiver\n");
+    printf("=========================\n");
+    printf("RF Receiver Pin: GPIO %d\n", rx_pin);
+    printf("Baud Rate: %d bps\n", DEFAULT_BAUD_RATE);
+    printf("Debug: %s\n", debug_mode ? "Enabled" : "Disabled");
+    printf("Verbose: %s\n", verbose_mode ? "Enabled" : "Disabled");
+    printf("Press Ctrl+C to exit\n\n");
+    
+    // Initialize pigpio
+    if (gpioInitialise() < 0) {
+        fprintf(stderr, "Failed to initialize GPIO\n");
+        return EXIT_FAILURE;
+    }
+    
+    // Set up signal handler for Ctrl+C
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+    
+    // Set up the RF receiver pin
+    gpioSetMode(rx_pin, PI_INPUT);
+    gpioSetPullUpDown(rx_pin, PI_PUD_DOWN); // Pull-down resistor
+    
+    // Variable to track signal states
+    volatile bool running = true;
+    int last_state = 0;
+    uint32_t last_change = 0;
+    uint32_t pulse_length = 0;
+    uint32_t start_time;
+    char message_buffer[MAX_MESSAGE_LEN] = {0};
+    int char_index = 0;
+    int bit_index = 0;
+    uint8_t current_byte = 0;
+    
+    printf("Monitoring for RF transmissions...\n");
+    printf("Looking for: 'PIC32MX RF TEST'\n\n");
+    
+    // Main loop
+    while (running) {
+        // Current pin state
+        int state = gpioRead(rx_pin);
+        uint32_t current_time = gpioTick();
+        
+        // Detect state change (edge)
+        if (state != last_state) {
+            // Calculate pulse length
+            pulse_length = current_time - last_change;
+            last_change = current_time;
+            
+            // Reset message detection on long gaps
+            if (pulse_length > BIT_DURATION * 5) {
+                if (char_index > 0 && debug_mode) {
+                    printf("\nPartial message reset after %u us gap\n", pulse_length);
+                }
+                char_index = 0;
+                bit_index = 0;
+                current_byte = 0;
+                memset(message_buffer, 0, sizeof(message_buffer));
+                
+                // Check if this is a start of transmission (high pulse)
+                if (state == 1) {
+                    if (debug_mode) {
+                        printf("\nPotential transmission start detected\n");
+                    }
+                    start_time = current_time;
+                }
+            } 
+            // Standard bit timing
+            else if (state == 1 && pulse_length >= BIT_DURATION - SAMPLE_TOLERANCE && 
+                     pulse_length <= BIT_DURATION + SAMPLE_TOLERANCE) {
+                // This is likely a '1' bit
+                current_byte = (current_byte >> 1) | 0x80;
+                bit_index++;
+                if (verbose_mode) printf("1");
+                
+                // Complete byte
+                if (bit_index == 8) {
+                    if (char_index < MAX_MESSAGE_LEN - 1 && 
+                        (current_byte >= 32 && current_byte <= 126)) { // Printable ASCII
+                        message_buffer[char_index++] = (char)current_byte;
+                        if (verbose_mode) {
+                            printf("[%c]", current_byte);
+                        }
+                    }
+                    bit_index = 0;
+                    current_byte = 0;
+                    
+                    // Check if we've received "PIC32MX RF TEST" or part of it
+                    if (strstr(message_buffer, "PIC32MX")) {
+                        printf("\n\nReceived partial/complete message: %s\n", message_buffer);
+                        printf("Length: %d bytes\n", char_index);
+                        printf("Hex: ");
+                        for (int i = 0; i < char_index; i++) {
+                            printf("%02X ", (unsigned char)message_buffer[i]);
+                        }
+                        printf("\n");
+                        
+                        // Reset for next message
+                        char_index = 0;
+                        memset(message_buffer, 0, sizeof(message_buffer));
+                    }
+                }
+            } 
+            // Low bit
+            else if (state == 0 && pulse_length >= BIT_DURATION - SAMPLE_TOLERANCE && 
+                     pulse_length <= BIT_DURATION + SAMPLE_TOLERANCE) {
+                // This is likely a '0' bit
+                current_byte = current_byte >> 1; // Shift but don't set high bit
+                bit_index++;
+                if (verbose_mode) printf("0");
+                
+                // Complete byte
+                if (bit_index == 8) {
+                    if (char_index < MAX_MESSAGE_LEN - 1 && 
+                        (current_byte >= 32 && current_byte <= 126)) { // Printable ASCII
+                        message_buffer[char_index++] = (char)current_byte;
+                        if (verbose_mode) {
+                            printf("[%c]", current_byte);
+                        }
+                    }
+                    bit_index = 0;
+                    current_byte = 0;
+                    
+                    // Check if we've received "PIC32MX RF TEST" or part of it
+                    if (strstr(message_buffer, "PIC32MX")) {
+                        printf("\n\nReceived partial/complete message: %s\n", message_buffer);
+                        printf("Length: %d bytes\n", char_index);
+                        printf("Hex: ");
+                        for (int i = 0; i < char_index; i++) {
+                            printf("%02X ", (unsigned char)message_buffer[i]);
+                        }
+                        printf("\n");
+                        
+                        // Reset for next message
+                        char_index = 0;
+                        memset(message_buffer, 0, sizeof(message_buffer));
+                    }
+                }
+            } 
+            // Manchester encoded bit (two transitions per bit)
+            else if ((pulse_length >= BIT_DURATION/2 - SAMPLE_TOLERANCE) && 
+                     (pulse_length <= BIT_DURATION/2 + SAMPLE_TOLERANCE)) {
+                // This is a Manchester transition, but we need two transitions per bit
+                // Will be handled in the next state change
+                if (debug_mode && verbose_mode) {
+                    printf("M"); // Manchester transition
+                }
+            }
+            
+            // Debug output for pulse lengths
+            if (debug_mode && pulse_length > BIT_DURATION * 2) {
+                printf("\nPulse: %dus, State: %d\n", pulse_length, state);
+            }
+        }
+        
+        last_state = state;
+        
+        // Small delay to prevent CPU overload
+        delay_us(50);
+    }
+    
+    // Cleanup
+    gpioTerminate();
+    printf("\nRF receiver terminated\n");
+    return EXIT_SUCCESS;
+}
+
+// Signal handler for clean shutdown
+void signal_handler(int sig) {
+    printf("\nReceived signal %d, shutting down...\n", sig);
+    gpioTerminate();
+    exit(0);
+}
+
+// Function to delay microseconds
+void delay_us(int microseconds) {
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = microseconds * 1000;
+    nanosleep(&ts, NULL);
+}
+
+// Function to delay milliseconds
+void delay_ms(int milliseconds) {
+    struct timespec ts;
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds % 1000) * 1000000;
+    nanosleep(&ts, NULL);
+}
 
 // Remove unused transmit functions since we only have a receiver
 // Function to send sync signal - REMOVED (transmitter not connected)
