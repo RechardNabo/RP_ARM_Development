@@ -17,7 +17,7 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include "../CAN_bus.h"  // Include extended CAN ID protocol definitions
-#include <mongoc-1.0/mongoc.h>
+#include <libmongoc-1.0/mongoc.h>
 #include <libbson-1.0/bson.h>
 
 // Configuration
