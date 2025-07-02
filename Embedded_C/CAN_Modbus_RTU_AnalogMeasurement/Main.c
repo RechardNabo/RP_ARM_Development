@@ -16,6 +16,9 @@
 #include <sys/ioctl.h>
 #include <linux/can.h>
 #include <linux/can/raw.h>
+#include "CAN bus.h"  // Include extended CAN ID protocol definitions
+#include <mongoc/mongoc.h>
+#include <bson/bson.h>
 
 // Configuration
 #define SERIAL_PORT "/dev/ttyAMA0"  // UART port on RPi
@@ -23,11 +26,19 @@
 #define SLAVE_ID 3                  // ESP32 Modbus slave ID
 #define CAN_INTERFACE "can0"        // CAN interface name
 
-// CAN message IDs
-#define TARGET_CAN_ID 0x125         // Environmental sensor data (temperature and humidity)
-#define VOLTAGE_CAN_ID 0x126        // Resistor voltage data
-#define CURRENT_CAN_ID 0x127        // Resistor current data
-#define POWER_CAN_ID 0x128          // Resistor power data
+// CAN message IDs using extended CAN ID protocol
+// Legacy plain CAN IDs for backward compatibility
+#define TARGET_CAN_ID_LEGACY 0x125         // Environmental sensor data (temperature and humidity)
+#define VOLTAGE_CAN_ID_LEGACY 0x126        // Resistor voltage data
+#define CURRENT_CAN_ID_LEGACY 0x127        // Resistor current data
+#define POWER_CAN_ID_LEGACY 0x128          // Resistor power data
+
+// Extended CAN IDs using the protocol defined in CAN bus.h
+// Using source ID 0x01 (this device), destination broadcast (0xFF), and appropriate message types
+#define TARGET_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ENV_HUMIDITY)
+#define VOLTAGE_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_VOLTAGE_DC)
+#define CURRENT_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_CURRENT_DC)
+#define POWER_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_POWER_CALCULATED)
 
 // RS485 control
 #define SERIAL_COMMUNICATION_CONTROL_PIN 21  // DE/RE pin for RS485 module
@@ -110,9 +121,111 @@ typedef enum {
 // Current log level
 static LogLevel current_log_level = LOG_INFO;
 
+// Save device information to MongoDB
+bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
+    bson_t *query, *doc;
+    bson_error_t error;
+    char id_str[10];
+    
+    // Create query to check if this device already exists
+    sprintf(id_str, "%02X", device_id);
+    query = BCON_NEW("device_id", BCON_UTF8(id_str));
+    
+    // Check if device exists
+    int64_t count = mongoc_collection_count_documents(
+        devices_collection, query, NULL, 0, 0, NULL, &error);
+    
+    if (count < 0) {
+        log_message(LOG_ERROR, "MongoDB count error: %s", error.message);
+        bson_destroy(query);
+        return false;
+    }
+    
+    // If device doesn't exist, create it
+    if (count == 0) {
+        char hostname[256];
+        gethostname(hostname, sizeof(hostname));
+        time_t now = time(NULL);
+        char timestamp[30];
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
+        
+        doc = BCON_NEW(
+            "device_id", BCON_UTF8(id_str),
+            "device_type", BCON_UTF8(device_type),
+            "first_seen", BCON_UTF8(timestamp),
+            "last_seen", BCON_UTF8(timestamp),
+            "collector_hostname", BCON_UTF8(hostname)
+        );
+        
+        if (!mongoc_collection_insert_one(devices_collection, doc, NULL, NULL, &error)) {
+            log_message(LOG_ERROR, "MongoDB insert error: %s", error.message);
+            bson_destroy(query);
+            bson_destroy(doc);
+            return false;
+        }
+        
+        log_message(LOG_INFO, "Added new device to MongoDB: ID=0x%s, Type=%s", id_str, device_type);
+        bson_destroy(doc);
+    } else {
+        // Update last_seen timestamp
+        time_t now = time(NULL);
+        char timestamp[30];
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
+        
+        doc = BCON_NEW("$set", "{"|
+            "last_seen" : "|" BCON_UTF8(timestamp) "|"
+        "}");
+        
+        if (!mongoc_collection_update_one(devices_collection, query, doc, NULL, NULL, &error)) {
+            log_message(LOG_ERROR, "MongoDB update error: %s", error.message);
+            bson_destroy(query);
+            bson_destroy(doc);
+            return false;
+        }
+        bson_destroy(doc);
+    }
+    
+    bson_destroy(query);
+    return true;
+}
+
+// Save sensor reading to MongoDB
+bool save_sensor_data_to_mongodb(const char* id_type, uint8_t device_id, const char* sensor_type, float temp, float humid) {
+    bson_t *doc;
+    bson_error_t error;
+    time_t now = time(NULL);
+    char timestamp[30];
+    char id_str[10];
+    
+    sprintf(id_str, "%02X", device_id);
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
+    
+    doc = BCON_NEW(
+        "device_id", BCON_UTF8(id_str),
+        "id_type", BCON_UTF8(id_type),
+        "sensor_type", BCON_UTF8(sensor_type),
+        "timestamp", BCON_UTF8(timestamp),
+        "temperature", BCON_DOUBLE(temp),
+        "humidity", BCON_DOUBLE(humid)
+    );
+    
+    if (!mongoc_collection_insert_one(sensors_collection, doc, NULL, NULL, &error)) {
+        log_message(LOG_ERROR, "MongoDB sensor data insert error: %s", error.message);
+        bson_destroy(doc);
+        return false;
+    }
+    
+    log_message(LOG_DEBUG, "Saved sensor data to MongoDB: Device=0x%s, Temp=%.1f, Humid=%.1f",
+               id_str, temp, humid);
+    
+    bson_destroy(doc);
+    return true;
+}
+
 // Signal handler for graceful termination
-void handle_signal(int signal) {
-    running = false;
+void handle_signal(int sig) {
+    log_message(LOG_INFO, "Signal %d received. Exiting...", sig);
+    running = 0;
 }
 
 // Function to delay milliseconds
@@ -351,6 +464,7 @@ bool write_resistor_data_to_influxdb(float v1, float v2, float v3,
 
     return write_successful;
 }
+
 // Function to calculate Modbus CRC16
 unsigned short calculateCRC(unsigned char *buffer, int length) {
     unsigned short crc = 0xFFFF;
@@ -701,7 +815,7 @@ bool extract_can_current_data(const struct can_frame *frame) {
         ((uint32_t)frame->data[2] << 8) | 
         (uint32_t)frame->data[3];
     
-// Convert binary representation to float value
+    // Convert binary representation to float value
     memcpy(&last_current, &currentBits, 4);
     
     log_message(LOG_INFO, "Parsed CAN current value: %.3f mA", last_current * 1000.0);
@@ -827,54 +941,109 @@ void process_all_can_messages(int can_socket) {
                 messages_processed++;
                 
                 // Process based on the CAN ID
-                switch (frame.can_id) {
-                    case TARGET_CAN_ID:
-                        log_message(LOG_DEBUG, "Received CAN frame with ID 0x%X (Environment data)", frame.can_id);
-                        if (extract_can_data(&frame, &temp, &humid)) {
-                            last_can_temperature = temp;
-                            last_can_humidity = humid;
-                            time(&last_can_read);
+                // First check if it's an extended CAN ID
+                if (IS_EXTENDED_ID(frame.can_id)) {
+                    uint8_t msg_type = GET_EXT_MSG_TYPE(frame.can_id);
+                    uint8_t source = GET_EXT_SOURCE(frame.can_id);
+                    uint8_t priority = GET_EXT_PRIORITY(frame.can_id);
+                    
+                    log_message(LOG_DEBUG, "Received extended CAN frame: ID=0x%X, Priority=%d, Source=0x%X, Type=0x%X", 
+                              frame.can_id, priority, source, msg_type);
+                    
+                    switch (msg_type) {
+                        case MSG_ENV_HUMIDITY:
+                        case MSG_TEMP_AMBIENT:
+                            if (extract_can_data(&frame, &temp, &humid)) {
+                                last_can_temperature = temp;
+                                last_can_humidity = humid;
+                                time(&last_can_read);
+                                
+                                // Write to InfluxDB with source tag "CAN"
+                                if (write_to_influxdb(temp, humid, "CAN")) {
+                                    influx_writes++;
+                                } else {
+                                    error_count++;
+                                }
+                                
+                                // Save to MongoDB
+                                save_sensor_data_to_mongodb("extended", source, "Environment", temp, humid);
+                            }
+                            break;
+                        case MSG_VOLTAGE_DC:
+                            log_message(LOG_DEBUG, "Received extended CAN frame with voltage data");
+                            extract_can_voltage_data(&frame);
+                            break;
+                        case MSG_CURRENT_DC:
+                            log_message(LOG_DEBUG, "Received extended CAN frame with current data");
+                            extract_can_current_data(&frame);
+                            break;
+                        case MSG_POWER_CALCULATED:
+                            log_message(LOG_DEBUG, "Received extended CAN frame with power data");
+                            extract_can_power_data(&frame);
                             
-                            // Write to InfluxDB with source tag "CAN"
-                            if (write_to_influxdb(temp, humid, "CAN")) {
-                                influx_writes++;
-                            } else {
-                                error_count++;
+                            // If we have both voltage and current readings, write to InfluxDB
+                            if (last_voltage_read > 0 && last_current_read > 0) {
+                                if (write_resistor_data_to_influxdb(last_voltage_r1, last_voltage_r2, last_voltage_r3, 
+                                                                last_current, last_power_r1, last_power_r2, last_power_r3, 
+                                                                "CAN")) {
+                                    influx_writes++;
+                                } else {
+                                    error_count++;
+                                }
                             }
-                        }
-                        break;
-                    
-                    case VOLTAGE_CAN_ID:
-                        log_message(LOG_DEBUG, "Received CAN frame with ID 0x%X (Voltage data)", frame.can_id);
-                        extract_can_voltage_data(&frame);
-                        break;
-                    
-                    case CURRENT_CAN_ID:
-                        log_message(LOG_DEBUG, "Received CAN frame with ID 0x%X (Current data)", frame.can_id);
-                        extract_can_current_data(&frame);
-                        break;
-                    
-                    case POWER_CAN_ID:
-                        log_message(LOG_DEBUG, "Received CAN frame with ID 0x%X (Power data)", frame.can_id);
-                        extract_can_power_data(&frame);
-                        
-                        // After receiving power data, write resistor data to InfluxDB
-                        // (assuming we've collected all resistor measurements)
-                        if (last_voltage_read > 0 && last_current_read > 0) {
-                            if (write_resistor_data_to_influxdb(
-                                    last_voltage_r1, last_voltage_r2, last_voltage_r3,
-                                    last_current, last_power_r1, last_power_r2, last_power_r3,
-                                    "CAN")) {
-                                influx_writes++;
-                            } else {
-                                error_count++;
+                            break;
+                        default:
+                            log_message(LOG_DEBUG, "Received extended CAN frame with unhandled message type: 0x%X", msg_type);
+                            break;
+                    }
+                } else {
+                    // For backward compatibility, also handle legacy CAN IDs
+                    switch (frame.can_id) {
+                        case TARGET_CAN_ID_LEGACY:
+                            log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Environment data)", frame.can_id);
+                            if (extract_can_data(&frame, &temp, &humid)) {
+                                last_can_temperature = temp;
+                                last_can_humidity = humid;
+                                time(&last_can_read);
+                                
+                                // Write to InfluxDB with source tag "CAN"
+                                if (write_to_influxdb(temp, humid, "CAN")) {
+                                    influx_writes++;
+                                } else {
+                                    error_count++;
+                                }
+                                
+                                // Save to MongoDB
+                                save_sensor_data_to_mongodb("legacy", 0x00, "Environment", temp, humid);
                             }
-                        }
-                        break;
-                    
-                    default:
-                        log_message(LOG_DEBUG, "Received CAN frame with unexpected ID 0x%X", frame.can_id);
-                        break;
+                            break;
+                        case VOLTAGE_CAN_ID_LEGACY:
+                            log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Voltage data)", frame.can_id);
+                            extract_can_voltage_data(&frame);
+                            break;
+                        case CURRENT_CAN_ID_LEGACY:
+                            log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Current data)", frame.can_id);
+                            extract_can_current_data(&frame);
+                            break;
+                        case POWER_CAN_ID_LEGACY:
+                            log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Power data)", frame.can_id);
+                            extract_can_power_data(&frame);
+                            
+                            // If we have both voltage and current readings, write to InfluxDB
+                            if (last_voltage_read > 0 && last_current_read > 0) {
+                                if (write_resistor_data_to_influxdb(last_voltage_r1, last_voltage_r2, last_voltage_r3, 
+                                                                last_current, last_power_r1, last_power_r2, last_power_r3, 
+                                                                "CAN")) {
+                                    influx_writes++;
+                                } else {
+                                    error_count++;
+                                }
+                            }
+                            break;
+                        default:
+                            log_message(LOG_DEBUG, "Received CAN frame with unexpected ID 0x%X", frame.can_id);
+                            break;
+                    }
                 }
             } else if (nbytes < 0) {
                 log_message(LOG_ERROR, "CAN message reception failed: %s", strerror(errno));
@@ -916,8 +1085,8 @@ void print_statistics() {
     log_message(LOG_INFO, "==== Resistor Measurements ====");
     log_message(LOG_INFO, "Voltages (RTU) - R1: %.3fV, R2: %.3fV, R3: %.3fV", 
                last_rtu_voltage_r1, last_rtu_voltage_r2, last_rtu_voltage_r3);
-    log_message(LOG_INFO, "Current (RTU): %.3f mA", last_rtu_current * 1000.0);
-    log_message(LOG_INFO, "Power (RTU) - R1: %.3f mW, R2: %.3f mW, R3: %.3f mW", 
+    log_message(LOG_INFO, "Current (RTU): %.3fmA", last_rtu_current * 1000.0);
+    log_message(LOG_INFO, "Power (RTU) - R1: %.3fmW, R2: %.3fmW, R3: %.3fmW", 
                last_rtu_power_r1 * 1000.0, last_rtu_power_r2 * 1000.0, last_rtu_power_r3 * 1000.0);
     
     log_message(LOG_INFO, "Voltages (CAN) - R1: %.3fV, R2: %.3fV, R3: %.3fV", 
@@ -1003,6 +1172,22 @@ int main(void) {
         gpioTerminate();
         return EXIT_FAILURE;
     }
+    
+    // Initialize MongoDB
+    mongoc_init();
+    mongo_client = mongoc_client_new("mongodb://localhost:27017");
+    
+    if (!mongo_client) {
+        log_message(LOG_ERROR, "Failed to create MongoDB client");
+        cleanup_resources();
+        return EXIT_FAILURE;
+    }
+    
+    database = mongoc_client_get_database(mongo_client, "canbus_data");
+    devices_collection = mongoc_database_get_collection(database, "devices");
+    sensors_collection = mongoc_database_get_collection(database, "sensor_readings");
+    
+    log_message(LOG_INFO, "MongoDB initialized successfully");
     
     // Test InfluxDB connection
     if (!test_influxdb_connection()) {
@@ -1173,4 +1358,25 @@ int main(void) {
     log_message(LOG_INFO, "Monitor terminated successfully");
     
     return EXIT_SUCCESS;
+}
+
+void cleanup_resources() {
+    // Clean up CURL resources
+    cleanup_curl_resources();
+    curl_global_cleanup();
+    
+    // Clean up MongoDB resources
+    if (devices_collection) mongoc_collection_destroy(devices_collection);
+    if (sensors_collection) mongoc_collection_destroy(sensors_collection);
+    if (database) mongoc_database_destroy(database);
+    if (mongo_client) mongoc_client_destroy(mongo_client);
+    mongoc_cleanup();
+    
+    // Close serial port
+    close_serial();
+    
+    // Terminate GPIO library
+    gpioTerminate();
+    
+    log_message(LOG_INFO, "Resources cleaned up");
 }
