@@ -17,8 +17,8 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include "../CAN_bus.h"  // Include extended CAN ID protocol definitions
-#include <mongoc/mongoc.h>
-#include <bson/bson.h>
+#include <mongoc-1.0/mongoc.h>
+#include <libbson-1.0/bson.h>
 
 // Configuration
 #define SERIAL_PORT "/dev/ttyAMA0"  // UART port on RPi
