@@ -36,9 +36,9 @@
 // Extended CAN IDs using the protocol defined in CAN bus.h
 // Using source ID 0x01 (this device), destination broadcast (0xFF), and appropriate message types
 #define TARGET_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ENV_HUMIDITY)
-#define VOLTAGE_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_VOLTAGE_DC)
-#define CURRENT_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_CURRENT_DC)
-#define POWER_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_POWER_CALCULATED)
+#define VOLTAGE_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ELECTRICAL_DC_VOLTAGE)
+#define CURRENT_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ELECTRICAL_DC_CURRENT)
+#define POWER_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ELECTRICAL_ACTIVE_POWER)
 
 // RS485 control
 #define SERIAL_COMMUNICATION_CONTROL_PIN 21  // DE/RE pin for RS485 module
@@ -80,6 +80,12 @@ static volatile bool running = true;
 // CURL handle for reuse
 static CURL *curl_handle = NULL;
 static struct curl_slist *headers = NULL;
+
+// MongoDB connection variables
+static mongoc_client_t *mongo_client = NULL;
+static mongoc_database_t *database = NULL;
+static mongoc_collection_t *devices_collection = NULL;
+static mongoc_collection_t *sensors_collection = NULL;
 
 // Temperature and humidity variables
 static float last_rtu_temperature = 0.0;
@@ -172,9 +178,11 @@ bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
         char timestamp[30];
         strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
         
-        doc = BCON_NEW("$set", "{"|
-            "last_seen" : "|" BCON_UTF8(timestamp) "|"
-        "}");
+        doc = BCON_NEW("$set", 
+            BCON_DOCUMENT_BEGIN, 
+                "last_seen", BCON_UTF8(timestamp),
+            BCON_DOCUMENT_END
+        );
         
         if (!mongoc_collection_update_one(devices_collection, query, doc, NULL, NULL, &error)) {
             log_message(LOG_ERROR, "MongoDB update error: %s", error.message);
@@ -969,15 +977,15 @@ void process_all_can_messages(int can_socket) {
                                 save_sensor_data_to_mongodb("extended", source, "Environment", temp, humid);
                             }
                             break;
-                        case MSG_VOLTAGE_DC:
+                        case MSG_ELECTRICAL_DC_VOLTAGE:
                             log_message(LOG_DEBUG, "Received extended CAN frame with voltage data");
                             extract_can_voltage_data(&frame);
                             break;
-                        case MSG_CURRENT_DC:
+                        case MSG_ELECTRICAL_DC_CURRENT:
                             log_message(LOG_DEBUG, "Received extended CAN frame with current data");
                             extract_can_current_data(&frame);
                             break;
-                        case MSG_POWER_CALCULATED:
+                        case MSG_ELECTRICAL_ACTIVE_POWER:
                             log_message(LOG_DEBUG, "Received extended CAN frame with power data");
                             extract_can_power_data(&frame);
                             
@@ -1349,9 +1357,7 @@ int main(void) {
     log_message(LOG_INFO, "Shutting down...");
     close(serial_fd);
     close(can_socket);
-    cleanup_curl_resources();
-    curl_global_cleanup();
-    gpioTerminate();
+    cleanup_resources();
     
     // Final statistics
     print_statistics();
@@ -1372,8 +1378,7 @@ void cleanup_resources() {
     if (mongo_client) mongoc_client_destroy(mongo_client);
     mongoc_cleanup();
     
-    // Close serial port
-    close_serial();
+    // Serial port is closed in main
     
     // Terminate GPIO library
     gpioTerminate();
