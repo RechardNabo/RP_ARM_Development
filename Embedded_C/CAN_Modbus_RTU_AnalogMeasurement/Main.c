@@ -702,7 +702,7 @@ int send_modbus_command(int fd, int gpio_pin, unsigned char *cmd, int cmd_length
     
     // Print the message we're sending
     log_message(LOG_DEBUG, "Sending Modbus command:");
-    if (current_log_level >= LOG_DEBUG) {
+    if (log_level >= LOG_DEBUG) {
         print_hex_buffer(cmd, cmd_length);
     }
     
@@ -863,7 +863,7 @@ bool read_temperature_humidity_rtu(int serial_fd, int gpio_pin, float *temperatu
     log_message(LOG_DEBUG, "    RECEIVED RTU ENVIRONMENT DATA");
     log_message(LOG_DEBUG, "--------------------------------------");
     log_message(LOG_DEBUG, "Bytes received: %d", bytes_read);
-    if (current_log_level >= LOG_DEBUG) {
+    if (log_level >= LOG_DEBUG) {
         print_hex_buffer(buffer, bytes_read);
     }
     
@@ -920,7 +920,7 @@ bool read_resistor_data_rtu(int serial_fd, int gpio_pin) {
     log_message(LOG_DEBUG, "     RECEIVED RTU RESISTOR DATA");
     log_message(LOG_DEBUG, "--------------------------------------");
     log_message(LOG_DEBUG, "Bytes received: %d", bytes_read);
-    if (current_log_level >= LOG_DEBUG) {
+    if (log_level >= LOG_DEBUG) {
         print_hex_buffer(buffer, bytes_read);
     }
     
