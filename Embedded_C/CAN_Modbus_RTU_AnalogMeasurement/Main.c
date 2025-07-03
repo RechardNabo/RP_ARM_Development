@@ -57,6 +57,15 @@ void print_device_statistics();
 #define VOLTAGE_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ELECTRICAL_DC_VOLTAGE)
 #define CURRENT_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ELECTRICAL_DC_CURRENT)
 #define POWER_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ELECTRICAL_ACTIVE_POWER)
+#define ARCHITECTURE_CAN_ID MAKE_EXTENDED_CAN_ID(PRIORITY_SENSOR_DATA, 0x01, EXT_DEST_BROADCAST, MSG_ARCHITECTURE_ID)
+
+// CAN message types in extended CAN ID
+#define MSG_ARCHITECTURE_ID        0x01
+#define MSG_TEMP_AMBIENT          0x20
+#define MSG_ENV_HUMIDITY          0x50
+#define MSG_ELECTRICAL_DC_VOLTAGE 0x80
+#define MSG_ELECTRICAL_DC_CURRENT 0x82
+#define MSG_ELECTRICAL_ACTIVE_POWER 0x84
 
 // RS485 control
 #define SERIAL_COMMUNICATION_CONTROL_PIN 21  // DE/RE pin for RS485 module
@@ -1110,12 +1119,31 @@ void process_all_can_messages(int can_socket) {
                     log_message(LOG_DEBUG, "Received extended CAN frame: ID=0x%X, Priority=%d, Source=0x%X, Type=0x%X", 
                                frame.can_id, priority, source, msg_type);
                     
-                    // Update device activity when any CAN message is received
-                    char device_type[32];
-                    snprintf(device_type, sizeof(device_type), "CAN_Architecture_0x%02X", source);
-                    save_device_info_to_mongodb(source, device_type);
+                    // Only update device activity for non-architecture messages
+                    // Architecture messages will be handled specifically in the switch case
                     
                     switch (msg_type) {
+                        case MSG_ARCHITECTURE_ID:
+                            // Process architecture information message
+                            {
+                                char arch_name[9] = {0}; // 8 chars + null terminator
+                                int name_len = frame.can_dlc > 8 ? 8 : frame.can_dlc;
+                                
+                                // Extract architecture name from payload
+                                for (int i = 0; i < name_len; i++) {
+                                    arch_name[i] = (char)frame.data[i];
+                                }
+                                
+                                log_message(LOG_INFO, "Received architecture info from device 0x%02X: %s", 
+                                           source, arch_name);
+                                
+                                // Save device info with actual architecture name
+                                char device_type[64];
+                                snprintf(device_type, sizeof(device_type), "ESP32_%s", arch_name);
+                                save_device_info_to_mongodb(source, device_type);
+                            }
+                            break;
+                            
                         case MSG_ENV_HUMIDITY:
                         case MSG_TEMP_AMBIENT:
                             if (extract_can_data(&frame, &temp, &humid)) {
