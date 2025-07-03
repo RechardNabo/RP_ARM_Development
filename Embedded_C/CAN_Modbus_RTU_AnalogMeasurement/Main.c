@@ -32,6 +32,13 @@ void log_message(LogLevel level, const char *format, ...);
 bool init_curl_resources();
 void cleanup_curl_resources();
 void cleanup_resources();
+void handle_signal(int sig);
+bool read_temperature_humidity_rtu(int serial_fd, int gpio_pin, float *temperature, float *humidity);
+bool read_resistor_data_rtu(int serial_fd, int gpio_pin);
+bool write_to_influxdb(float temperature, float humidity, const char* source);
+bool write_resistor_data_to_influxdb(float v1, float v2, float v3, float current, float p1, float p2, float p3, const char* source);
+void process_all_can_messages(int can_socket);
+void print_statistics();
 void update_device_activity(uint8_t device_id, const char *device_type);
 void check_device_status();
 void update_device_status_in_mongodb(uint8_t device_id, bool is_active);
@@ -42,6 +49,7 @@ void print_device_statistics();
 #define SERIAL_PORT "/dev/ttyAMA0"  // UART port on RPi
 #define BAUD_RATE B9600             // Standard baud rate
 #define SLAVE_ID 3                  // ESP32 Modbus slave ID
+#define MODBUS_SLAVE_ID SLAVE_ID    // Alias for consistency
 #define CAN_INTERFACE "can0"        // CAN interface name
 
 // CAN message IDs using extended CAN ID protocol
@@ -93,6 +101,22 @@ void print_device_statistics();
 #define INFLUXDB_URL "http://localhost:8086/ping"
 #define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=9433a3d38dc34293&bucket=_monitoring&precision=ns"
 #define INFLUXDB_TOKEN "1XlVsaw2ko-fG0TGccLNKi3IfQ6tst9zMGglcUQCMrnJ-5--KkxpxLIWIWtYH8XbSWTyTxQSI32Bv9zByKr_ag=="
+
+// Global variables
+LogLevel log_level = LOG_INFO;
+
+// Data variables
+float last_rtu_temperature = 0.0;
+float last_rtu_humidity = 0.0;
+float last_rtu_voltage_r1 = 0.0;
+float last_rtu_voltage_r2 = 0.0;
+float last_rtu_voltage_r3 = 0.0;
+float last_rtu_current = 0.0;
+float last_rtu_power_r1 = 0.0;
+float last_rtu_power_r2 = 0.0;
+float last_rtu_power_r3 = 0.0;
+time_t last_rtu_read = 0;
+time_t last_device_status_check = 0;
 
 // Statistics
 static unsigned long modbus_queries = 0;
@@ -1449,19 +1473,22 @@ void print_statistics() {
     log_message(LOG_INFO, "\n");
 }
 
+// Signal handler for graceful termination
+void handle_signal(int sig) {
+    log_message(LOG_INFO, "Received signal %d, shutting down...", sig);
+    running = false;
+}
+
 int main(void) {
     int serial_fd;
     int can_socket;
     
     // Set up signal handler for graceful shutdown
-    sa.sa_handler = signal_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
     
-    // Initialize logging
-    init_logging(LOG_INFO); // Set default log level
+    // Initialize log level
+    log_level = LOG_INFO; // Set default log level
     
     log_message(LOG_INFO, "\n======================================");
     log_message(LOG_INFO, "   CAN & MODBUS RTU DATA COLLECTION");
@@ -1470,10 +1497,19 @@ int main(void) {
     
     // Connect to MongoDB
     log_message(LOG_INFO, "\n--- Connecting to MongoDB ---");
-    if (!initialize_mongodb()) {
-        log_message(LOG_ERROR, "Failed to connect to MongoDB, exiting");
+    // Connect to MongoDB
+    mongoc_init();
+    mongo_client = mongoc_client_new("mongodb://localhost:27017");
+    
+    if (!mongo_client) {
+        log_message(LOG_ERROR, "Failed to create MongoDB client");
         return 1;
     }
+    
+    database = mongoc_client_get_database(mongo_client, "canbus_data");
+    devices_collection = mongoc_database_get_collection(database, "devices");
+    sensors_collection = mongoc_database_get_collection(database, "sensor_readings");
+    
     log_message(LOG_INFO, "MongoDB connection established");
     
     // Initialize PIGPIO library for RS485 direction control
@@ -1512,7 +1548,7 @@ int main(void) {
     log_message(LOG_INFO, "      INITIALIZING SERIAL PORT");
     log_message(LOG_INFO, "======================================");
     log_message(LOG_INFO, "Port:       %s", SERIAL_PORT);
-    log_message(LOG_INFO, "Baud rate:  %d", BAUD_RATE_INT);
+    log_message(LOG_INFO, "Baud rate:  %d", B9600);
     log_message(LOG_INFO, "Data bits:  8");
     log_message(LOG_INFO, "Parity:     None");
     log_message(LOG_INFO, "Stop bits:  1");
@@ -1631,7 +1667,7 @@ int main(void) {
     time_t current_time;
     float rtu_temperature, rtu_humidity;
     
-    while (!quit_flag) {
+    while (running) {
         // Read temperature and humidity via Modbus RTU
         time(&current_time);
         
@@ -1644,7 +1680,7 @@ int main(void) {
             
             // Save to MongoDB
             log_message(LOG_DEBUG, "Saving RTU data to MongoDB...");
-            save_sensor_data_to_mongodb("rtu", MODBUS_SLAVE_ID, "Environment", rtu_temperature, rtu_humidity);
+            save_sensor_data_to_mongodb("rtu", 1, "Environment", rtu_temperature, rtu_humidity);
             
             last_rtu_temperature = rtu_temperature;
             last_rtu_humidity = rtu_humidity;
