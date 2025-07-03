@@ -105,18 +105,7 @@ void print_device_statistics();
 // Global variables
 LogLevel log_level = LOG_INFO;
 
-// Data variables
-float last_rtu_temperature = 0.0;
-float last_rtu_humidity = 0.0;
-float last_rtu_voltage_r1 = 0.0;
-float last_rtu_voltage_r2 = 0.0;
-float last_rtu_voltage_r3 = 0.0;
-float last_rtu_current = 0.0;
-float last_rtu_power_r1 = 0.0;
-float last_rtu_power_r2 = 0.0;
-float last_rtu_power_r3 = 0.0;
-time_t last_rtu_read = 0;
-time_t last_device_status_check = 0;
+// These variables are already declared as static later in the file
 
 // Statistics
 static unsigned long modbus_queries = 0;
@@ -183,8 +172,7 @@ static float last_rtu_power_r3 = 0.0;
 
 // Log levels already defined in the forward declarations
 
-// Current log level
-static LogLevel current_log_level = LOG_INFO;
+// Current log level is defined as log_level globally
 
 void update_device_activity(uint8_t device_id, const char *device_type) {
     time_t now;
@@ -438,7 +426,7 @@ size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
 // Print timestamp and log message based on log level
 void log_message(LogLevel level, const char *format, ...) {
     // Skip if log level is higher than current setting
-    if (level > current_log_level) {
+    if (level > log_level) {
         return;
     }
 
@@ -1471,12 +1459,6 @@ void print_statistics() {
     }
     
     log_message(LOG_INFO, "\n");
-}
-
-// Signal handler for graceful termination
-void handle_signal(int sig) {
-    log_message(LOG_INFO, "Received signal %d, shutting down...", sig);
-    running = false;
 }
 
 int main(void) {
