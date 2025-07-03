@@ -32,6 +32,11 @@ void log_message(LogLevel level, const char *format, ...);
 bool init_curl_resources();
 void cleanup_curl_resources();
 void cleanup_resources();
+void update_device_activity(uint8_t device_id, const char *device_type);
+void check_device_status();
+void update_device_status_in_mongodb(uint8_t device_id, bool is_active);
+void save_device_info_to_mongodb(uint8_t device_id, const char *device_type);
+void print_device_statistics();
 
 // Configuration
 #define SERIAL_PORT "/dev/ttyAMA0"  // UART port on RPi
@@ -100,6 +105,20 @@ static mongoc_database_t *database = NULL;
 static mongoc_collection_t *devices_collection = NULL;
 static mongoc_collection_t *sensors_collection = NULL;
 
+// Device status tracking
+#define DEVICE_TIMEOUT_SECONDS 60  // Time after which device is considered inactive
+struct DeviceStatus {
+    uint8_t device_id;
+    time_t last_activity;
+    bool is_active;
+    char device_type[32];
+};
+
+#define MAX_TRACKED_DEVICES 10
+static struct DeviceStatus tracked_devices[MAX_TRACKED_DEVICES];
+static int num_tracked_devices = 0;
+static time_t last_device_status_check = 0;
+
 // Temperature and humidity variables
 static float last_rtu_temperature = 0.0;
 static float last_rtu_humidity = 0.0;
@@ -134,11 +153,141 @@ static float last_rtu_power_r3 = 0.0;
 // Current log level
 static LogLevel current_log_level = LOG_INFO;
 
-// Save device information to MongoDB
-bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
-    bson_t *query, *doc;
+void update_device_activity(uint8_t device_id, const char *device_type) {
+    time_t now;
+    time(&now);
+    int i;
+    bool found = false;
+    
+    // Look for existing device in our tracking array
+    for (i = 0; i < num_tracked_devices; i++) {
+        if (tracked_devices[i].device_id == device_id) {
+            // Update existing device
+            tracked_devices[i].last_activity = now;
+            tracked_devices[i].is_active = true;
+            found = true;
+            break;
+        }
+    }
+    
+    // If device not found and we have space, add it
+    if (!found && num_tracked_devices < MAX_TRACKED_DEVICES) {
+        tracked_devices[num_tracked_devices].device_id = device_id;
+        tracked_devices[num_tracked_devices].last_activity = now;
+        tracked_devices[num_tracked_devices].is_active = true;
+        strncpy(tracked_devices[num_tracked_devices].device_type, device_type, sizeof(tracked_devices[num_tracked_devices].device_type) - 1);
+        tracked_devices[num_tracked_devices].device_type[sizeof(tracked_devices[num_tracked_devices].device_type) - 1] = '\0';
+        num_tracked_devices++;
+    }
+}
+
+void check_device_status() {
+    time_t now;
+    time(&now);
+    int i;
+    
+    for (i = 0; i < num_tracked_devices; i++) {
+        // If device hasn't sent data within DEVICE_TIMEOUT_SECONDS, mark as inactive
+        bool previous_status = tracked_devices[i].is_active;
+        if (now - tracked_devices[i].last_activity > DEVICE_TIMEOUT_SECONDS) {
+            tracked_devices[i].is_active = false;
+        }
+        
+        // If status changed, update MongoDB
+        if (previous_status != tracked_devices[i].is_active) {
+            update_device_status_in_mongodb(tracked_devices[i].device_id, tracked_devices[i].is_active);
+        }
+    }
+    
+    last_device_status_check = now;
+}
+
+void update_device_status_in_mongodb(uint8_t device_id, bool is_active) {
+    if (!mongo_client || !devices_collection) {
+        log_message(LOG_ERROR, "MongoDB client not initialized");
+        return;
+    }
+    
     bson_error_t error;
-    char id_str[10];
+    bson_t *doc;
+    bson_t *query;
+    char id_str[3];
+    
+    // Format device ID as hex string
+    sprintf(id_str, "%02X", device_id);
+    
+    // Create query to find this device
+    query = bson_new();
+    BSON_APPEND_UTF8(query, "device_id", id_str);
+    
+    // Create update document
+    bson_t *update = bson_new();
+    BSON_APPEND_BOOL(update, "status", is_active);
+    
+    doc = bson_new();
+    BSON_APPEND_DOCUMENT(doc, "$set", update);
+    
+    // Update the device status
+    if (!mongoc_collection_update_one(devices_collection, query, doc, NULL, NULL, &error)) {
+        log_message(LOG_ERROR, "MongoDB status update error: %s", error.message);
+    } else {
+        log_message(LOG_INFO, "Device %s status updated to %s", id_str, is_active ? "active" : "inactive");
+    }
+    
+    bson_destroy(update);
+    bson_destroy(doc);
+    bson_destroy(query);
+}
+
+// Print device statistics
+void print_device_statistics() {
+    if (!mongo_client || !devices_collection) {
+        log_message(LOG_ERROR, "MongoDB client not initialized");
+        return;
+    }
+    
+    int i;
+    log_message(LOG_INFO, "==== Device Status ====");
+    
+    for (i = 0; i < num_tracked_devices; i++) {
+        char device_id_str[3];
+        sprintf(device_id_str, "%02X", tracked_devices[i].device_id);
+        
+        // Get time since last activity
+        time_t now;
+        time(&now);
+        long seconds_since_activity = now - tracked_devices[i].last_activity;
+        
+        log_message(LOG_INFO, "Device %s (%s): %s (Last seen: %ld seconds ago)", 
+                  device_id_str,
+                  tracked_devices[i].device_type,
+                  tracked_devices[i].is_active ? "ACTIVE" : "INACTIVE",
+                  seconds_since_activity);
+    }
+}
+
+// Save device information to MongoDB
+void save_device_info_to_mongodb(uint8_t device_id, const char *device_type) {
+    if (!mongo_client || !devices_collection) {
+        log_message(LOG_ERROR, "MongoDB client not initialized");
+        return;
+    }
+    
+    // Update device activity tracking
+    update_device_activity(device_id, device_type);
+    
+    bson_error_t error;
+    bson_t *doc;
+    bson_t *query;
+    char id_str[3];
+    time_t now;
+    char hostname[256];
+    
+    // Get current time
+    time(&now);
+    
+    // Get hostname for collector identification
+    gethostname(hostname, sizeof(hostname));
     
     // Create query to check if this device already exists
     sprintf(id_str, "%02X", device_id);
@@ -152,14 +301,14 @@ bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
     if (count < 0) {
         log_message(LOG_ERROR, "MongoDB count error: %s", error.message);
         bson_destroy(query);
-        return false;
+        return;
     }
     
-    // If device doesn't exist, create it
+    // If device doesn't exist, insert it
     if (count == 0) {
-        char hostname[256];
-        gethostname(hostname, sizeof(hostname));
-        time_t now = time(NULL);
+        log_message(LOG_INFO, "Adding new device %s (%s) to MongoDB", id_str, device_type);
+        
+        // Format timestamp
         char timestamp[30];
         strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
         
@@ -169,24 +318,23 @@ bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
         bson_append_utf8(doc, "first_seen", -1, timestamp, -1);
         bson_append_utf8(doc, "last_seen", -1, timestamp, -1);
         bson_append_utf8(doc, "collector_hostname", -1, hostname, -1);
+        bson_append_bool(doc, "status", true);  // New device is active
         
         if (!mongoc_collection_insert_one(devices_collection, doc, NULL, NULL, &error)) {
             log_message(LOG_ERROR, "MongoDB insert error: %s", error.message);
-            bson_destroy(query);
-            bson_destroy(doc);
-            return false;
         }
-        
-        log_message(LOG_INFO, "Added new device to MongoDB: ID=0x%s, Type=%s", id_str, device_type);
         bson_destroy(doc);
     } else {
-        // Update last_seen timestamp
-        time_t now = time(NULL);
+        // Device exists, update the last_seen timestamp and status
+        log_message(LOG_DEBUG, "Updating existing device %s in MongoDB", id_str);
+        
+        // Format timestamp
         char timestamp[30];
         strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
         
         bson_t *update = bson_new();
         BSON_APPEND_UTF8(update, "last_seen", timestamp);
+        BSON_APPEND_BOOL(update, "status", true);  // Device is active
         
         doc = bson_new();
         BSON_APPEND_DOCUMENT(doc, "$set", update);
@@ -195,15 +343,11 @@ bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
         
         if (!mongoc_collection_update_one(devices_collection, query, doc, NULL, NULL, &error)) {
             log_message(LOG_ERROR, "MongoDB update error: %s", error.message);
-            bson_destroy(query);
-            bson_destroy(doc);
-            return false;
         }
         bson_destroy(doc);
     }
     
     bson_destroy(query);
-    return true;
 }
 
 // Save sensor reading to MongoDB
@@ -964,7 +1108,12 @@ void process_all_can_messages(int can_socket) {
                     uint8_t priority = GET_EXT_PRIORITY(frame.can_id);
                     
                     log_message(LOG_DEBUG, "Received extended CAN frame: ID=0x%X, Priority=%d, Source=0x%X, Type=0x%X", 
-                              frame.can_id, priority, source, msg_type);
+                               frame.can_id, priority, source, msg_type);
+                    
+                    // Update device activity when any CAN message is received
+                    char device_type[32];
+                    snprintf(device_type, sizeof(device_type), "CAN_Architecture_0x%02X", source);
+                    save_device_info_to_mongodb(source, device_type);
                     
                     switch (msg_type) {
                         case MSG_ENV_HUMIDITY:
@@ -1017,6 +1166,9 @@ void process_all_can_messages(int can_socket) {
                     switch (frame.can_id) {
                         case TARGET_CAN_ID_LEGACY:
                             log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Environment data)", frame.can_id);
+                            // Track legacy device activity
+                            save_device_info_to_mongodb(0xFF, "CAN_Legacy_Device");
+                            
                             if (extract_can_data(&frame, &temp, &humid)) {
                                 last_can_temperature = temp;
                                 last_can_humidity = humid;
@@ -1035,14 +1187,20 @@ void process_all_can_messages(int can_socket) {
                             break;
                         case VOLTAGE_CAN_ID_LEGACY:
                             log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Voltage data)", frame.can_id);
+                            // Track legacy device activity
+                            save_device_info_to_mongodb(0xFF, "CAN_Legacy_Device");
                             extract_can_voltage_data(&frame);
                             break;
                         case CURRENT_CAN_ID_LEGACY:
                             log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Current data)", frame.can_id);
+                            // Track legacy device activity
+                            save_device_info_to_mongodb(0xFF, "CAN_Legacy_Device");
                             extract_can_current_data(&frame);
                             break;
                         case POWER_CAN_ID_LEGACY:
                             log_message(LOG_DEBUG, "Received legacy CAN frame with ID 0x%X (Power data)", frame.can_id);
+                            // Track legacy device activity
+                            save_device_info_to_mongodb(0xFF, "CAN_Legacy_Device");
                             extract_can_power_data(&frame);
                             
                             // If we have both voltage and current readings, write to InfluxDB
@@ -1084,6 +1242,9 @@ void print_statistics() {
     log_message(LOG_INFO, "CAN Messages Received: %lu", can_messages);
     log_message(LOG_INFO, "InfluxDB Writes: %lu", influx_writes);
     log_message(LOG_INFO, "Errors: %lu", error_count);
+    
+    // Print device status
+    print_device_statistics();
     
     float modbus_success = (modbus_replies > 0 && modbus_queries > 0) ? 
                            ((float)modbus_replies / modbus_queries * 100) : 0;
@@ -1343,6 +1504,11 @@ int main(void) {
         if (current_time - last_stats_time >= 60) {
             print_statistics();
             last_stats_time = current_time;
+        }
+        
+        // Check device status every DEVICE_TIMEOUT_SECONDS / 2 seconds
+        if (current_time - last_device_status_check >= DEVICE_TIMEOUT_SECONDS / 2) {
+            check_device_status();
         }
         
         // Short delay between iterations
