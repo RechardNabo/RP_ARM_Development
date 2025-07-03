@@ -822,6 +822,13 @@ bool read_temperature_humidity_rtu(int serial_fd, int gpio_pin, float *temperatu
     unsigned char buffer[MAX_BUFFER_SIZE];
     int bytes_read;
     
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "    REQUESTING RTU ENVIRONMENT DATA");
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "Target:     Modbus Slave");
+    log_message(LOG_DEBUG, "Operation:  Read Input Registers");
+    log_message(LOG_DEBUG, "Registers:  %d (count: 2)", REG_TEMPERATURE);
+    
     // Send request to read two input registers starting at address 0
     if (send_read_input_registers(serial_fd, gpio_pin, REG_TEMPERATURE, 2) != 0) {
         log_message(LOG_ERROR, "Failed to send Modbus request for temperature/humidity");
@@ -840,7 +847,10 @@ bool read_temperature_humidity_rtu(int serial_fd, int gpio_pin, float *temperatu
     }
     
     // Debug output
-    log_message(LOG_DEBUG, "Received temperature/humidity response (%d bytes):", bytes_read);
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "    RECEIVED RTU ENVIRONMENT DATA");
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "Bytes received: %d", bytes_read);
     if (current_log_level >= LOG_DEBUG) {
         print_hex_buffer(buffer, bytes_read);
     }
@@ -855,6 +865,11 @@ bool read_temperature_humidity_rtu(int serial_fd, int gpio_pin, float *temperatu
         return false;
     }
     
+    // Print the parsed values
+    log_message(LOG_DEBUG, "Temperature: %.2f°C", *temperature);
+    log_message(LOG_DEBUG, "Humidity:    %.2f%%", *humidity);
+    log_message(LOG_DEBUG, "--------------------------------------");
+    
     modbus_replies++;
     return true;
 }
@@ -863,6 +878,13 @@ bool read_temperature_humidity_rtu(int serial_fd, int gpio_pin, float *temperatu
 bool read_resistor_data_rtu(int serial_fd, int gpio_pin) {
     unsigned char buffer[MAX_BUFFER_SIZE];
     int bytes_read;
+    
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "    REQUESTING RTU RESISTOR DATA");
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "Target:     Modbus Slave");
+    log_message(LOG_DEBUG, "Operation:  Read Input Registers");
+    log_message(LOG_DEBUG, "Registers:  %d (count: 7)", REG_VOLTAGE_R1);
     
     // Send request to read 7 input registers starting at address 2 (registers 2-8)
     if (send_read_input_registers(serial_fd, gpio_pin, REG_VOLTAGE_R1, 7) != 0) {
@@ -882,13 +904,26 @@ bool read_resistor_data_rtu(int serial_fd, int gpio_pin) {
     }
     
     // Debug output
-    log_message(LOG_DEBUG, "Received resistor data response (%d bytes):", bytes_read);
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "     RECEIVED RTU RESISTOR DATA");
+    log_message(LOG_DEBUG, "--------------------------------------");
+    log_message(LOG_DEBUG, "Bytes received: %d", bytes_read);
     if (current_log_level >= LOG_DEBUG) {
         print_hex_buffer(buffer, bytes_read);
     }
     
     // Parse the response
     parse_resistor_data_response(buffer, bytes_read);
+    
+    // Display the parsed values
+    log_message(LOG_DEBUG, "Voltage R1: %.3f V", last_rtu_voltage_r1);
+    log_message(LOG_DEBUG, "Voltage R2: %.3f V", last_rtu_voltage_r2);
+    log_message(LOG_DEBUG, "Voltage R3: %.3f V", last_rtu_voltage_r3);
+    log_message(LOG_DEBUG, "Current:    %.3f mA", last_rtu_current * 1000.0);
+    log_message(LOG_DEBUG, "Power R1:   %.3f mW", last_rtu_power_r1 * 1000.0);
+    log_message(LOG_DEBUG, "Power R2:   %.3f mW", last_rtu_power_r2 * 1000.0);
+    log_message(LOG_DEBUG, "Power R3:   %.3f mW", last_rtu_power_r3 * 1000.0);
+    log_message(LOG_DEBUG, "--------------------------------------");
     
     modbus_replies++;
     return true;
@@ -1116,7 +1151,7 @@ void process_all_can_messages(int can_socket) {
                     uint8_t source = GET_EXT_SOURCE(frame.can_id);
                     uint8_t priority = GET_EXT_PRIORITY(frame.can_id);
                     
-                    log_message(LOG_DEBUG, "Received extended CAN frame: ID=0x%X, Priority=%d, Source=0x%X, Type=0x%X", 
+                    log_message(LOG_DEBUG, "CAN: [EXT ID=0x%X] Priority=%d | Source=0x%X | Type=0x%X", 
                                frame.can_id, priority, source, msg_type);
                     
                     // Only update device activity for non-architecture messages
@@ -1134,8 +1169,12 @@ void process_all_can_messages(int can_socket) {
                                     arch_name[i] = (char)frame.data[i];
                                 }
                                 
-                                log_message(LOG_INFO, "Received architecture info from device 0x%02X: %s", 
-                                           source, arch_name);
+                                log_message(LOG_INFO, "======================================");
+                                log_message(LOG_INFO, "        DEVICE ARCHITECTURE");
+                                log_message(LOG_INFO, "======================================");
+                                log_message(LOG_INFO, "Device ID:   0x%02X", source);
+                                log_message(LOG_INFO, "Architecture: %s", arch_name);
+                                log_message(LOG_INFO, "======================================\n");
                                 
                                 // Save device info with actual architecture name
                                 char device_type[64];
@@ -1151,6 +1190,15 @@ void process_all_can_messages(int can_socket) {
                                 last_can_humidity = humid;
                                 time(&last_can_read);
                                 
+                                // Log environment data in a structured format
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "    RECEIVED CAN ENVIRONMENT DATA");
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "Device:      0x%02X", source);
+                                log_message(LOG_DEBUG, "Temperature: %.2f°C", temp);
+                                log_message(LOG_DEBUG, "Humidity:    %.2f%%", humid);
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                
                                 // Write to InfluxDB with source tag "CAN"
                                 if (write_to_influxdb(temp, humid, "CAN")) {
                                     influx_writes++;
@@ -1163,25 +1211,67 @@ void process_all_can_messages(int can_socket) {
                             }
                             break;
                         case MSG_ELECTRICAL_DC_VOLTAGE:
-                            log_message(LOG_DEBUG, "Received extended CAN frame with voltage data");
-                            extract_can_voltage_data(&frame);
+                            if (extract_can_voltage_data(&frame)) {
+                                time(&last_voltage_read);
+                                
+                                // Log voltage data in a structured format
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "     RECEIVED CAN VOLTAGE DATA");
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "Device:    0x%02X", source);
+                                log_message(LOG_DEBUG, "Voltage R1: %.3f V", last_voltage_r1);
+                                log_message(LOG_DEBUG, "Voltage R2: %.3f V", last_voltage_r2);
+                                log_message(LOG_DEBUG, "Voltage R3: %.3f V", last_voltage_r3);
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                
+                                // Update MongoDB
+                                update_device_activity(source, "Voltage");
+                            }
                             break;
                         case MSG_ELECTRICAL_DC_CURRENT:
-                            log_message(LOG_DEBUG, "Received extended CAN frame with current data");
-                            extract_can_current_data(&frame);
+                            if (extract_can_current_data(&frame)) {
+                                time(&last_current_read);
+                                
+                                // Log current data in a structured format
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "     RECEIVED CAN CURRENT DATA");
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "Device:  0x%02X", source);
+                                log_message(LOG_DEBUG, "Current: %.3f mA", last_current * 1000.0);
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                
+                                // Update MongoDB
+                                update_device_activity(source, "Current");
+                            }
                             break;
                         case MSG_ELECTRICAL_ACTIVE_POWER:
-                            log_message(LOG_DEBUG, "Received extended CAN frame with power data");
-                            extract_can_power_data(&frame);
-                            
-                            // If we have both voltage and current readings, write to InfluxDB
-                            if (last_voltage_read > 0 && last_current_read > 0) {
-                                if (write_resistor_data_to_influxdb(last_voltage_r1, last_voltage_r2, last_voltage_r3, 
-                                                                last_current, last_power_r1, last_power_r2, last_power_r3, 
-                                                                "CAN")) {
-                                    influx_writes++;
-                                } else {
-                                    error_count++;
+                            if (extract_can_power_data(&frame)) {
+                                time(&last_power_read);
+                                
+                                // Log power data in a structured format
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "      RECEIVED CAN POWER DATA");
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                log_message(LOG_DEBUG, "Device:   0x%02X", source);
+                                log_message(LOG_DEBUG, "Power R1: %.3f mW", last_power_r1 * 1000.0);
+                                log_message(LOG_DEBUG, "Power R2: %.3f mW", last_power_r2 * 1000.0);
+                                log_message(LOG_DEBUG, "Power R3: %.3f mW", last_power_r3 * 1000.0);
+                                log_message(LOG_DEBUG, "--------------------------------------");
+                                
+                                // Update MongoDB
+                                update_device_activity(source, "Power");
+                                
+                                // If we have both voltage and current readings, write to InfluxDB
+                                if (last_voltage_read > 0 && last_current_read > 0) {
+                                    if (write_resistor_data_to_influxdb(last_voltage_r1, last_voltage_r2, last_voltage_r3, 
+                                                                    last_current, last_power_r1, last_power_r2, last_power_r3, 
+                                                                    "CAN")) {
+                                        influx_writes++;
+                                        log_message(LOG_DEBUG, "Wrote CAN resistor data to InfluxDB");
+                                    } else {
+                                        error_count++;
+                                        log_message(LOG_ERROR, "Failed to write CAN resistor data to InfluxDB");
+                                    }
                                 }
                             }
                             break;
@@ -1264,100 +1354,130 @@ void process_all_can_messages(int can_socket) {
 
 // Print statistics
 void print_statistics() {
-    log_message(LOG_INFO, "--- Statistics Update ---");
-    log_message(LOG_INFO, "Modbus RTU Queries Sent: %lu", modbus_queries);
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "        SYSTEM STATISTICS");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "Modbus RTU Queries Sent:     %lu", modbus_queries);
     log_message(LOG_INFO, "Modbus RTU Replies Received: %lu", modbus_replies);
-    log_message(LOG_INFO, "CAN Messages Received: %lu", can_messages);
-    log_message(LOG_INFO, "InfluxDB Writes: %lu", influx_writes);
-    log_message(LOG_INFO, "Errors: %lu", error_count);
-    
-    // Print device status
-    print_device_statistics();
+    log_message(LOG_INFO, "CAN Messages Received:       %lu", can_messages);
+    log_message(LOG_INFO, "InfluxDB Writes:            %lu", influx_writes);
+    log_message(LOG_INFO, "Errors:                     %lu", error_count);
     
     float modbus_success = (modbus_replies > 0 && modbus_queries > 0) ? 
                            ((float)modbus_replies / modbus_queries * 100) : 0;
     
-    log_message(LOG_INFO, "Modbus RTU Success Rate: %.1f%%", modbus_success);
+    log_message(LOG_INFO, "Modbus RTU Success Rate:    %.1f%%", modbus_success);
     
-    // Environment data
-    log_message(LOG_INFO, "==== Environment Data ====");
-    log_message(LOG_INFO, "RTU Temperature: %.2f°C, Humidity: %.2f%%", 
-               last_rtu_temperature, last_rtu_humidity);
-    log_message(LOG_INFO, "CAN Temperature: %.2f°C, Humidity: %.2f%%", 
-               last_can_temperature, last_can_humidity);
+    // Print device status
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "        DEVICE STATUS");
+    log_message(LOG_INFO, "======================================");
+    print_device_statistics();
     
-    // Resistor data
-    log_message(LOG_INFO, "==== Resistor Measurements ====");
-    log_message(LOG_INFO, "Voltages (RTU) - R1: %.3fV, R2: %.3fV, R3: %.3fV", 
-               last_rtu_voltage_r1, last_rtu_voltage_r2, last_rtu_voltage_r3);
-    log_message(LOG_INFO, "Current (RTU): %.3fmA", last_rtu_current * 1000.0);
-    log_message(LOG_INFO, "Power (RTU) - R1: %.3fmW, R2: %.3fmW, R3: %.3fmW", 
-               last_rtu_power_r1 * 1000.0, last_rtu_power_r2 * 1000.0, last_rtu_power_r3 * 1000.0);
+    // Environment data - separate RTU and CAN clearly
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "        ENVIRONMENT DATA");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "[RTU] Temperature: %.2f°C", last_rtu_temperature);
+    log_message(LOG_INFO, "[RTU] Humidity:    %.2f%%", last_rtu_humidity);
+    log_message(LOG_INFO, "-------------------------------------");
+    log_message(LOG_INFO, "[CAN] Temperature: %.2f°C", last_can_temperature);
+    log_message(LOG_INFO, "[CAN] Humidity:    %.2f%%", last_can_humidity);
     
-    log_message(LOG_INFO, "Voltages (CAN) - R1: %.3fV, R2: %.3fV, R3: %.3fV", 
-               last_voltage_r1, last_voltage_r2, last_voltage_r3);
-    log_message(LOG_INFO, "Current (CAN): %.3f mA", last_current * 1000.0);
-    log_message(LOG_INFO, "Power (CAN) - R1: %.3f mW, R2: %.3f mW, R3: %.3f mW", 
-               last_power_r1 * 1000.0, last_power_r2 * 1000.0, last_power_r3 * 1000.0);
+    // Resistor data - separate RTU measurements
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "        RTU RESISTOR MEASUREMENTS");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "Voltage R1: %.3f V", last_rtu_voltage_r1);
+    log_message(LOG_INFO, "Voltage R2: %.3f V", last_rtu_voltage_r2);
+    log_message(LOG_INFO, "Voltage R3: %.3f V", last_rtu_voltage_r3);
+    log_message(LOG_INFO, "Current:   %.3f mA", last_rtu_current * 1000.0);
+    log_message(LOG_INFO, "Power R1:  %.3f mW", last_rtu_power_r1 * 1000.0);
+    log_message(LOG_INFO, "Power R2:  %.3f mW", last_rtu_power_r2 * 1000.0);
+    log_message(LOG_INFO, "Power R3:  %.3f mW", last_rtu_power_r3 * 1000.0);
     
-    // Get formatted timestamps of last successful reads
-    char rtu_time_buffer[30];
-    char can_time_buffer[30];
-    char voltage_time_buffer[30];
-    char current_time_buffer[30];
-    char power_time_buffer[30];
+    // Resistor data - separate CAN measurements
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "        CAN RESISTOR MEASUREMENTS");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "Voltage R1: %.3f V", last_voltage_r1);
+    log_message(LOG_INFO, "Voltage R2: %.3f V", last_voltage_r2);
+    log_message(LOG_INFO, "Voltage R3: %.3f V", last_voltage_r3);
+    log_message(LOG_INFO, "Current:   %.3f mA", last_current * 1000.0);
+    log_message(LOG_INFO, "Power R1:  %.3f mW", last_power_r1 * 1000.0);
+    log_message(LOG_INFO, "Power R2:  %.3f mW", last_power_r2 * 1000.0);
+    log_message(LOG_INFO, "Power R3:  %.3f mW", last_power_r3 * 1000.0);
+    
+    // Last successful reads timestamps
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "        LAST SUCCESSFUL READS");
+    log_message(LOG_INFO, "======================================");
+    
+    char time_buffer[30];
     struct tm *tm_info;
     
     if (last_rtu_read > 0) {
         tm_info = localtime(&last_rtu_read);
-        strftime(rtu_time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
-        log_message(LOG_INFO, "Last Successful RTU Environment Read: %s", rtu_time_buffer);
+        strftime(time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
+        log_message(LOG_INFO, "RTU Environment Data:   %s", time_buffer);
     }
     
     if (last_can_read > 0) {
         tm_info = localtime(&last_can_read);
-        strftime(can_time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
-        log_message(LOG_INFO, "Last Successful CAN Environment Read: %s", can_time_buffer);
+        strftime(time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
+        log_message(LOG_INFO, "CAN Environment Data:   %s", time_buffer);
     }
     
     if (last_voltage_read > 0) {
         tm_info = localtime(&last_voltage_read);
-        strftime(voltage_time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
-        log_message(LOG_INFO, "Last Successful Voltage Read: %s", voltage_time_buffer);
+        strftime(time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
+        log_message(LOG_INFO, "CAN Voltage Data:       %s", time_buffer);
     }
     
     if (last_current_read > 0) {
         tm_info = localtime(&last_current_read);
-        strftime(current_time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
-        log_message(LOG_INFO, "Last Successful Current Read: %s", current_time_buffer);
+        strftime(time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
+        log_message(LOG_INFO, "CAN Current Data:       %s", time_buffer);
     }
     
     if (last_power_read > 0) {
         tm_info = localtime(&last_power_read);
-        strftime(power_time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
-        log_message(LOG_INFO, "Last Successful Power Read: %s", power_time_buffer);
+        strftime(time_buffer, 30, "%Y-%m-%d %H:%M:%S", tm_info);
+        log_message(LOG_INFO, "CAN Power Data:         %s", time_buffer);
     }
+    
+    log_message(LOG_INFO, "\n");
 }
 
 int main(void) {
     int serial_fd;
     int can_socket;
-    struct sockaddr_can addr;
-    struct ifreq ifr;
-    struct termios tty;
-    time_t last_stats_time = 0;
-    time_t last_rtu_resistor_time = 0;
-    time_t current_time;
-    float rtu_temperature, rtu_humidity;
     
-    // Set up signal handling for graceful termination
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
+    // Set up signal handler for graceful shutdown
+    sa.sa_handler = signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
     
-    log_message(LOG_INFO, "Starting Combined ESP32 Modbus RTU and CAN Monitor with Resistor Measurements...");
-    log_message(LOG_INFO, "Press Ctrl+C to exit");
-
+    // Initialize logging
+    init_logging(LOG_INFO); // Set default log level
+    
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "   CAN & MODBUS RTU DATA COLLECTION");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "System initializing...");
+    
+    // Connect to MongoDB
+    log_message(LOG_INFO, "\n--- Connecting to MongoDB ---");
+    if (!initialize_mongodb()) {
+        log_message(LOG_ERROR, "Failed to connect to MongoDB, exiting");
+        return 1;
+    }
+    log_message(LOG_INFO, "MongoDB connection established");
+    
     // Initialize PIGPIO library for RS485 direction control
+    log_message(LOG_INFO, "\n--- Initializing GPIO for RS485 ---");
     if (gpioInitialise() < 0) {
         log_message(LOG_ERROR, "Failed to initialize pigpio");
         return EXIT_FAILURE;
@@ -1366,8 +1486,10 @@ int main(void) {
     // Set the control pin as output
     gpioSetMode(SERIAL_COMMUNICATION_CONTROL_PIN, PI_OUTPUT);
     gpioWrite(SERIAL_COMMUNICATION_CONTROL_PIN, RS485_RX_PIN_VALUE); // Start in receive mode
+    log_message(LOG_INFO, "GPIO initialized: Pin %d set for RS485 direction control", SERIAL_COMMUNICATION_CONTROL_PIN);
     
-    // Initialize CURL globally
+    // Initialize CURL globally for InfluxDB communication
+    log_message(LOG_INFO, "\n--- Initializing InfluxDB Connection ---");
     curl_global_init(CURL_GLOBAL_DEFAULT);
     
     // Initialize CURL resources
@@ -1378,29 +1500,24 @@ int main(void) {
         return EXIT_FAILURE;
     }
     
-    // Initialize MongoDB
-    mongoc_init();
-    mongo_client = mongoc_client_new("mongodb://localhost:27017");
-    
-    if (!mongo_client) {
-        log_message(LOG_ERROR, "Failed to create MongoDB client");
-        cleanup_resources();
-        return EXIT_FAILURE;
-    }
-    
-    database = mongoc_client_get_database(mongo_client, "canbus_data");
-    devices_collection = mongoc_database_get_collection(database, "devices");
-    sensors_collection = mongoc_database_get_collection(database, "sensor_readings");
-    
-    log_message(LOG_INFO, "MongoDB initialized successfully");
-    
     // Test InfluxDB connection
     if (!test_influxdb_connection()) {
         log_message(LOG_WARNING, "Failed to connect to InfluxDB. Will continue but data won't be stored.");
+    } else {
+        log_message(LOG_INFO, "InfluxDB connection successful");
     }
 
     // Open and configure serial port for Modbus RTU
-    log_message(LOG_INFO, "Opening serial port %s...", SERIAL_PORT);
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "      INITIALIZING SERIAL PORT");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "Port:       %s", SERIAL_PORT);
+    log_message(LOG_INFO, "Baud rate:  %d", BAUD_RATE_INT);
+    log_message(LOG_INFO, "Data bits:  8");
+    log_message(LOG_INFO, "Parity:     None");
+    log_message(LOG_INFO, "Stop bits:  1");
+    log_message(LOG_INFO, "Flow ctrl:  None");
+    
     serial_fd = open(SERIAL_PORT, O_RDWR | O_NOCTTY | O_NDELAY);
     if (serial_fd < 0) {
         log_message(LOG_ERROR, "Error opening %s: %s", SERIAL_PORT, strerror(errno));
@@ -1409,6 +1526,7 @@ int main(void) {
     }
     
     // Get current serial port attributes
+    struct termios tty;
     memset(&tty, 0, sizeof(tty));
     if (tcgetattr(serial_fd, &tty) != 0) {
         log_message(LOG_ERROR, "Error from tcgetattr: %s", strerror(errno));
@@ -1450,12 +1568,19 @@ int main(void) {
     // Clear any existing data in the buffer
     tcflush(serial_fd, TCIOFLUSH);
     
-    log_message(LOG_INFO, "Serial port configured successfully at 9600 baud");
+    log_message(LOG_INFO, "Serial port configured successfully");
     
     // Open and configure CAN socket
-    log_message(LOG_INFO, "Opening CAN interface %s...", CAN_INTERFACE);
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "      INITIALIZING CAN INTERFACE");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "Interface:  %s", CAN_INTERFACE);
+    log_message(LOG_INFO, "Socket:     PF_CAN / SOCK_RAW");
     
     // Create CAN socket
+    struct sockaddr_can addr;
+    struct ifreq ifr;
+    
     can_socket = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (can_socket < 0) {
         log_message(LOG_ERROR, "Error creating CAN socket: %s", strerror(errno));
@@ -1464,19 +1589,20 @@ int main(void) {
         return EXIT_FAILURE;
     }
     
-    // Get CAN interface index
+    // Get interface index
     strcpy(ifr.ifr_name, CAN_INTERFACE);
     if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
-        log_message(LOG_ERROR, "Error getting CAN interface index: %s", strerror(errno));
+        log_message(LOG_ERROR, "Error getting %s interface index: %s", CAN_INTERFACE, strerror(errno));
         close(can_socket);
         close(serial_fd);
         cleanup_resources();
         return EXIT_FAILURE;
     }
     
-    // Bind CAN socket to interface
+    // Bind the socket to the CAN interface
     addr.can_family = AF_CAN;
     addr.can_ifindex = ifr.ifr_ifindex;
+    
     if (bind(can_socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         log_message(LOG_ERROR, "Error binding CAN socket: %s", strerror(errno));
         close(can_socket);
@@ -1485,22 +1611,47 @@ int main(void) {
         return EXIT_FAILURE;
     }
     
-    // We'll process all CAN IDs and filter in software
+    log_message(LOG_INFO, "CAN interface index: %d", ifr.ifr_ifindex);
+    log_message(LOG_INFO, "CAN socket bound successfully");
+    log_message(LOG_INFO, "======================================");
     log_message(LOG_INFO, "CAN interface configured successfully");
     log_message(LOG_INFO, "Monitoring for CAN IDs: 0x%X (Environment), 0x%X (Voltage), 0x%X (Current), 0x%X (Power)",
                 TARGET_CAN_ID, VOLTAGE_CAN_ID, CURRENT_CAN_ID, POWER_CAN_ID);
     log_message(LOG_INFO, "Starting monitoring loop...");
     
-    // Main loop
-    while (running) {
+    // Main application loop
+    log_message(LOG_INFO, "\n======================================");
+    log_message(LOG_INFO, "      STARTING APPLICATION LOOP");
+    log_message(LOG_INFO, "======================================");
+    log_message(LOG_INFO, "Monitoring for RTU and CAN data...");
+    log_message(LOG_INFO, "Press Ctrl+C to exit");
+    
+    time_t last_stats_time = 0;
+    time_t last_rtu_resistor_time = 0;
+    time_t current_time;
+    float rtu_temperature, rtu_humidity;
+    
+    while (!quit_flag) {
         // Read temperature and humidity via Modbus RTU
+        time(&current_time);
+        
         if (read_temperature_humidity_rtu(serial_fd, SERIAL_COMMUNICATION_CONTROL_PIN, &rtu_temperature, &rtu_humidity)) {
-            // Update last successful values
+            log_message(LOG_INFO, "--------------------------------------");
+            log_message(LOG_INFO, "       RTU DATA PROCESSING");
+            log_message(LOG_INFO, "--------------------------------------");
+            log_message(LOG_INFO, "Temperature: %.2f°C", rtu_temperature);
+            log_message(LOG_INFO, "Humidity:    %.2f%%", rtu_humidity);
+            
+            // Save to MongoDB
+            log_message(LOG_DEBUG, "Saving RTU data to MongoDB...");
+            save_sensor_data_to_mongodb("rtu", MODBUS_SLAVE_ID, "Environment", rtu_temperature, rtu_humidity);
+            
             last_rtu_temperature = rtu_temperature;
             last_rtu_humidity = rtu_humidity;
             time(&last_rtu_read);
             
             // Write to InfluxDB with source tag "RTU"
+            log_message(LOG_DEBUG, "Writing RTU data to InfluxDB...");
             if (write_to_influxdb(rtu_temperature, rtu_humidity, "RTU")) {
                 influx_writes++;
             } else {
