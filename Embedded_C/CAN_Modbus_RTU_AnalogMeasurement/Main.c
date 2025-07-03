@@ -318,7 +318,7 @@ void save_device_info_to_mongodb(uint8_t device_id, const char *device_type) {
         bson_append_utf8(doc, "first_seen", -1, timestamp, -1);
         bson_append_utf8(doc, "last_seen", -1, timestamp, -1);
         bson_append_utf8(doc, "collector_hostname", -1, hostname, -1);
-        bson_append_bool(doc, "status", true);  // New device is active
+        bson_append_bool(doc, "status", -1, true);  // New device is active
         
         if (!mongoc_collection_insert_one(devices_collection, doc, NULL, NULL, &error)) {
             log_message(LOG_ERROR, "MongoDB insert error: %s", error.message);
