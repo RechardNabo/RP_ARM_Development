@@ -20,6 +20,19 @@
 #include <libmongoc-1.0/mongoc.h>
 #include <libbson-1.0/bson.h>
 
+// Function declarations
+typedef enum {
+    LOG_ERROR,
+    LOG_WARNING,
+    LOG_INFO,
+    LOG_DEBUG
+} LogLevel;
+
+void log_message(LogLevel level, const char *format, ...);
+bool init_curl_resources();
+void cleanup_curl_resources();
+void cleanup_resources();
+
 // Configuration
 #define SERIAL_PORT "/dev/ttyAMA0"  // UART port on RPi
 #define BAUD_RATE B9600             // Standard baud rate
@@ -116,13 +129,7 @@ static float last_rtu_power_r1 = 0.0;
 static float last_rtu_power_r2 = 0.0;
 static float last_rtu_power_r3 = 0.0;
 
-// Log levels
-typedef enum {
-    LOG_ERROR,
-    LOG_WARNING,
-    LOG_INFO,
-    LOG_DEBUG
-} LogLevel;
+// Log levels already defined in the forward declarations
 
 // Current log level
 static LogLevel current_log_level = LOG_INFO;
@@ -135,11 +142,12 @@ bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
     
     // Create query to check if this device already exists
     sprintf(id_str, "%02X", device_id);
-    query = BCON_NEW("device_id", BCON_UTF8(id_str));
+    query = bson_new();
+    BSON_APPEND_UTF8(query, "device_id", id_str);
     
     // Check if device exists
     int64_t count = mongoc_collection_count_documents(
-        devices_collection, query, NULL, 0, 0, NULL, &error);
+        devices_collection, query, NULL, NULL, NULL, &error);
     
     if (count < 0) {
         log_message(LOG_ERROR, "MongoDB count error: %s", error.message);
@@ -155,13 +163,12 @@ bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
         char timestamp[30];
         strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
         
-        doc = BCON_NEW(
-            "device_id", BCON_UTF8(id_str),
-            "device_type", BCON_UTF8(device_type),
-            "first_seen", BCON_UTF8(timestamp),
-            "last_seen", BCON_UTF8(timestamp),
-            "collector_hostname", BCON_UTF8(hostname)
-        );
+        doc = bson_new();
+        bson_append_utf8(doc, "device_id", -1, id_str, -1);
+        bson_append_utf8(doc, "device_type", -1, device_type, -1);
+        bson_append_utf8(doc, "first_seen", -1, timestamp, -1);
+        bson_append_utf8(doc, "last_seen", -1, timestamp, -1);
+        bson_append_utf8(doc, "collector_hostname", -1, hostname, -1);
         
         if (!mongoc_collection_insert_one(devices_collection, doc, NULL, NULL, &error)) {
             log_message(LOG_ERROR, "MongoDB insert error: %s", error.message);
@@ -178,11 +185,13 @@ bool save_device_info_to_mongodb(uint8_t device_id, const char* device_type) {
         char timestamp[30];
         strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
         
-        doc = BCON_NEW("$set", 
-            BCON_DOCUMENT_BEGIN, 
-                "last_seen", BCON_UTF8(timestamp),
-            BCON_DOCUMENT_END
-        );
+        bson_t *update = bson_new();
+        BSON_APPEND_UTF8(update, "last_seen", timestamp);
+        
+        doc = bson_new();
+        BSON_APPEND_DOCUMENT(doc, "$set", update);
+        
+        bson_destroy(update);
         
         if (!mongoc_collection_update_one(devices_collection, query, doc, NULL, NULL, &error)) {
             log_message(LOG_ERROR, "MongoDB update error: %s", error.message);
@@ -208,14 +217,13 @@ bool save_sensor_data_to_mongodb(const char* id_type, uint8_t device_id, const c
     sprintf(id_str, "%02X", device_id);
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
     
-    doc = BCON_NEW(
-        "device_id", BCON_UTF8(id_str),
-        "id_type", BCON_UTF8(id_type),
-        "sensor_type", BCON_UTF8(sensor_type),
-        "timestamp", BCON_UTF8(timestamp),
-        "temperature", BCON_DOUBLE(temp),
-        "humidity", BCON_DOUBLE(humid)
-    );
+    doc = bson_new();
+    BSON_APPEND_UTF8(doc, "device_id", id_str);
+    BSON_APPEND_UTF8(doc, "id_type", id_type);
+    BSON_APPEND_UTF8(doc, "sensor_type", sensor_type);
+    BSON_APPEND_UTF8(doc, "timestamp", timestamp);
+    BSON_APPEND_DOUBLE(doc, "temperature", temp);
+    BSON_APPEND_DOUBLE(doc, "humidity", humid);
     
     if (!mongoc_collection_insert_one(sensors_collection, doc, NULL, NULL, &error)) {
         log_message(LOG_ERROR, "MongoDB sensor data insert error: %s", error.message);
@@ -1207,9 +1215,7 @@ int main(void) {
     serial_fd = open(SERIAL_PORT, O_RDWR | O_NOCTTY | O_NDELAY);
     if (serial_fd < 0) {
         log_message(LOG_ERROR, "Error opening %s: %s", SERIAL_PORT, strerror(errno));
-        cleanup_curl_resources();
-        curl_global_cleanup();
-        gpioTerminate();
+        cleanup_resources();
         return EXIT_FAILURE;
     }
     
@@ -1218,9 +1224,7 @@ int main(void) {
     if (tcgetattr(serial_fd, &tty) != 0) {
         log_message(LOG_ERROR, "Error from tcgetattr: %s", strerror(errno));
         close(serial_fd);
-        cleanup_curl_resources();
-        curl_global_cleanup();
-        gpioTerminate();
+        cleanup_resources();
         return EXIT_FAILURE;
     }
     
@@ -1250,9 +1254,7 @@ int main(void) {
     if (tcsetattr(serial_fd, TCSANOW, &tty) != 0) {
         log_message(LOG_ERROR, "Error from tcsetattr: %s", strerror(errno));
         close(serial_fd);
-        cleanup_curl_resources();
-        curl_global_cleanup();
-        gpioTerminate();
+        cleanup_resources();
         return EXIT_FAILURE;
     }
     
@@ -1269,9 +1271,7 @@ int main(void) {
     if (can_socket < 0) {
         log_message(LOG_ERROR, "Error creating CAN socket: %s", strerror(errno));
         close(serial_fd);
-        cleanup_curl_resources();
-        curl_global_cleanup();
-        gpioTerminate();
+        cleanup_resources();
         return EXIT_FAILURE;
     }
     
@@ -1281,9 +1281,7 @@ int main(void) {
         log_message(LOG_ERROR, "Error getting CAN interface index: %s", strerror(errno));
         close(can_socket);
         close(serial_fd);
-        cleanup_curl_resources();
-        curl_global_cleanup();
-        gpioTerminate();
+        cleanup_resources();
         return EXIT_FAILURE;
     }
     
@@ -1294,9 +1292,7 @@ int main(void) {
         log_message(LOG_ERROR, "Error binding CAN socket: %s", strerror(errno));
         close(can_socket);
         close(serial_fd);
-        cleanup_curl_resources();
-        curl_global_cleanup();
-        gpioTerminate();
+        cleanup_resources();
         return EXIT_FAILURE;
     }
     
