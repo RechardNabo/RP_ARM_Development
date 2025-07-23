@@ -1218,8 +1218,8 @@ void process_all_can_messages(int can_socket) {
                                     error_count++;
                                 }
                                 
-                                // Save to MongoDB
-                                save_sensor_data_to_mongodb("extended", source, "Environment", temp, humid);
+                                // Save to MongoDB - COMMENTED OUT
+                                // save_sensor_data_to_mongodb("extended", source, "Environment", temp, humid);
                             }
                             break;
                         case MSG_ELECTRICAL_DC_VOLTAGE:
@@ -1660,9 +1660,9 @@ int main(void) {
             log_message(LOG_INFO, "Temperature: %.2f°C", rtu_temperature);
             log_message(LOG_INFO, "Humidity:    %.2f%%", rtu_humidity);
             
-            // Save to MongoDB
-            log_message(LOG_DEBUG, "Saving RTU data to MongoDB...");
-            save_sensor_data_to_mongodb("rtu", 1, "Environment", rtu_temperature, rtu_humidity);
+            // Save to MongoDB - COMMENTED OUT
+            log_message(LOG_DEBUG, "Skipping saving RTU data to MongoDB");
+            // save_sensor_data_to_mongodb("rtu", 1, "Environment", rtu_temperature, rtu_humidity);
             
             last_rtu_temperature = rtu_temperature;
             last_rtu_humidity = rtu_humidity;
