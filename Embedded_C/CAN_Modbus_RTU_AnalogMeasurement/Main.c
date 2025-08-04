@@ -1287,6 +1287,67 @@ void process_all_can_messages(int can_socket) {
                                 }
                             }
                             break;
+                            
+                        case MSG_ENV_MICROPHONE_LEVEL: {
+                            if (frame.can_dlc >= 8) {
+                                // Extract microphone data (first 2 bytes are the actual value)
+                                uint16_t mic_value = (frame.data[1] << 8) | frame.data[0];
+                                float mic_level = (float)mic_value;
+                                
+                                // Extract identifier (bytes 2-4 should be 'MIC')
+                                char identifier[4] = {0};
+                                identifier[0] = frame.data[2];
+                                identifier[1] = frame.data[3];
+                                identifier[2] = frame.data[4];
+                                
+                                log_message(LOG_INFO, "[Device 0x%02X] Microphone Level: %.1f (Raw: %u) [%s]", 
+                                          source, mic_level, mic_value, identifier);
+                                log_message(LOG_DEBUG, "Microphone data - Raw: %u, Level: %.1f", mic_value, mic_level);
+                                
+                                // Update device activity
+                                update_device_activity(source, "Microphone");
+                                
+                                // Write to InfluxDB (using a generic sensor data function or create new one)
+                                // For now, we'll log it as audio sensor data
+                                log_message(LOG_DEBUG, "Microphone sensor data received from device 0x%02X", source);
+                            } else {
+                                log_message(LOG_WARNING, "Expected 8 bytes of microphone data but received %d bytes", frame.can_dlc);
+                            }
+                            break;
+                        }
+                        
+                        case MSG_MOTION_VIBRATION: {
+                            if (frame.can_dlc >= 8) {
+                                // Extract vibration state (first byte)
+                                uint8_t vib_state = frame.data[0];
+                                
+                                // Extract identifier (bytes 1-4 should be 'VIB1' or 'VIB2')
+                                char identifier[5] = {0};
+                                identifier[0] = frame.data[1];
+                                identifier[1] = frame.data[2];
+                                identifier[2] = frame.data[3];
+                                identifier[3] = frame.data[4];
+                                
+                                log_message(LOG_INFO, "[Device 0x%02X] Vibration Sensor: %s [%s]", 
+                                          source, vib_state ? "ACTIVE" : "INACTIVE", identifier);
+                                log_message(LOG_DEBUG, "Vibration data - State: %u (%s), Sensor: %s", 
+                                          vib_state, vib_state ? "TRIGGERED" : "NORMAL", identifier);
+                                
+                                // Update device activity
+                                update_device_activity(source, "Vibration");
+                                
+                                // Log vibration events
+                                if (vib_state) {
+                                    log_message(LOG_WARNING, "VIBRATION DETECTED on device 0x%02X sensor %s!", source, identifier);
+                                }
+                                
+                                log_message(LOG_DEBUG, "Vibration sensor data received from device 0x%02X", source);
+                            } else {
+                                log_message(LOG_WARNING, "Expected 8 bytes of vibration data but received %d bytes", frame.can_dlc);
+                            }
+                            break;
+                        }
+                        
                         default:
                             log_message(LOG_DEBUG, "Received extended CAN frame with unhandled message type: 0x%X", msg_type);
                             break;
