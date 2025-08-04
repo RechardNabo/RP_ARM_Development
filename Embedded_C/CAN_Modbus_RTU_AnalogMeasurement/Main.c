@@ -37,6 +37,8 @@ bool read_temperature_humidity_rtu(int serial_fd, int gpio_pin, float *temperatu
 bool read_resistor_data_rtu(int serial_fd, int gpio_pin);
 bool write_to_influxdb(float temperature, float humidity, const char* source);
 bool write_resistor_data_to_influxdb(float v1, float v2, float v3, float current, float p1, float p2, float p3, const char* source);
+bool write_microphone_data_to_influxdb(uint16_t mic_level, uint8_t device_id, const char *source);
+bool write_vibration_data_to_influxdb(uint8_t vib_state, const char *sensor_id, uint8_t device_id, const char *source);
 void process_all_can_messages(int can_socket);
 void print_statistics();
 void update_device_activity(uint8_t device_id, const char *device_type);
@@ -641,6 +643,94 @@ bool write_resistor_data_to_influxdb(float v1, float v2, float v3,
         }
     } else {
         log_message(LOG_ERROR, "Failed to write resistor data to InfluxDB: %s", curl_easy_strerror(res));
+    }
+
+    return write_successful;
+}
+
+// Write microphone data to InfluxDB
+bool write_microphone_data_to_influxdb(uint16_t mic_level, uint8_t device_id, const char *source) {
+    CURLcode res;
+    bool write_successful = false;
+    static char data[256];
+    
+    log_message(LOG_DEBUG, "Writing microphone data to InfluxDB - Source: %s, Device: 0x%02X, Level: %u", 
+                source, device_id, mic_level);
+    
+    // Create InfluxDB line protocol format with source and device tags
+    // Format: measurement,tag_set field_set timestamp
+    snprintf(data, sizeof(data), "microphone,sensor=PIC32MX,source=%s,device_id=0x%02X mic_level=%u", 
+             source, device_id, mic_level);
+    
+    // Reset handle for fresh configuration
+    curl_easy_reset(curl_handle);
+    
+    // Set URL and headers
+    curl_easy_setopt(curl_handle, CURLOPT_URL, INFLUXDB_WRITE_URL);
+    curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl_handle, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, data);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 3L);
+
+    // Perform request
+    res = curl_easy_perform(curl_handle);
+
+    if (res == CURLE_OK) {
+        long response_code;
+        curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+        if (response_code == 204) {
+            write_successful = true;
+            log_message(LOG_INFO, "Successfully wrote %s microphone data to InfluxDB", source);
+        } else {
+            log_message(LOG_ERROR, "Failed to write microphone data to InfluxDB: HTTP code %ld", response_code);
+        }
+    } else {
+        log_message(LOG_ERROR, "Failed to write microphone data to InfluxDB: %s", curl_easy_strerror(res));
+    }
+
+    return write_successful;
+}
+
+// Write vibration sensor data to InfluxDB
+bool write_vibration_data_to_influxdb(uint8_t vib_state, const char *sensor_id, uint8_t device_id, const char *source) {
+    CURLcode res;
+    bool write_successful = false;
+    static char data[256];
+    
+    log_message(LOG_DEBUG, "Writing vibration data to InfluxDB - Source: %s, Device: 0x%02X, Sensor: %s, State: %u", 
+                source, device_id, sensor_id, vib_state);
+    
+    // Create InfluxDB line protocol format with source, device, and sensor tags
+    // Format: measurement,tag_set field_set timestamp
+    snprintf(data, sizeof(data), "vibration,sensor=PIC32MX,source=%s,device_id=0x%02X,sensor_id=%s gpio_state=%u,triggered=%s", 
+             source, device_id, sensor_id, vib_state, vib_state ? "true" : "false");
+    
+    // Reset handle for fresh configuration
+    curl_easy_reset(curl_handle);
+    
+    // Set URL and headers
+    curl_easy_setopt(curl_handle, CURLOPT_URL, INFLUXDB_WRITE_URL);
+    curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl_handle, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, data);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 3L);
+
+    // Perform request
+    res = curl_easy_perform(curl_handle);
+
+    if (res == CURLE_OK) {
+        long response_code;
+        curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+        if (response_code == 204) {
+            write_successful = true;
+            log_message(LOG_INFO, "Successfully wrote %s vibration data to InfluxDB", source);
+        } else {
+            log_message(LOG_ERROR, "Failed to write vibration data to InfluxDB: HTTP code %ld", response_code);
+        }
+    } else {
+        log_message(LOG_ERROR, "Failed to write vibration data to InfluxDB: %s", curl_easy_strerror(res));
     }
 
     return write_successful;
@@ -1307,8 +1397,13 @@ void process_all_can_messages(int can_socket) {
                                 // Update device activity
                                 update_device_activity(source, "Microphone");
                                 
-                                // Write to InfluxDB (using a generic sensor data function or create new one)
-                                // For now, we'll log it as audio sensor data
+                                // Write to InfluxDB
+                                if (write_microphone_data_to_influxdb(mic_value, source, "CAN")) {
+                                    influx_writes++;
+                                } else {
+                                    error_count++;
+                                }
+                                
                                 log_message(LOG_DEBUG, "Microphone sensor data received from device 0x%02X", source);
                             } else {
                                 log_message(LOG_WARNING, "Expected 8 bytes of microphone data but received %d bytes", frame.can_dlc);
@@ -1335,6 +1430,13 @@ void process_all_can_messages(int can_socket) {
                                 
                                 // Update device activity
                                 update_device_activity(source, "Vibration");
+                                
+                                // Write to InfluxDB
+                                if (write_vibration_data_to_influxdb(vib_state, identifier, source, "CAN")) {
+                                    influx_writes++;
+                                } else {
+                                    error_count++;
+                                }
                                 
                                 // Log vibration events
                                 if (vib_state) {
