@@ -1316,7 +1316,7 @@ void process_all_can_messages(int can_socket) {
                             break;
                         }
                         
-                        case MSG_MOTION_VIBRATION: {
+                        case MSG_DIO_INPUT_STATES_INDIVIDUAL: {
                             if (frame.can_dlc >= 8) {
                                 // Extract vibration state (first byte)
                                 uint8_t vib_state = frame.data[0];
@@ -1328,10 +1328,10 @@ void process_all_can_messages(int can_socket) {
                                 identifier[2] = frame.data[3];
                                 identifier[3] = frame.data[4];
                                 
-                                log_message(LOG_INFO, "[Device 0x%02X] Vibration Sensor: %s [%s]", 
-                                          source, vib_state ? "ACTIVE" : "INACTIVE", identifier);
-                                log_message(LOG_DEBUG, "Vibration data - State: %u (%s), Sensor: %s", 
-                                          vib_state, vib_state ? "TRIGGERED" : "NORMAL", identifier);
+                                log_message(LOG_INFO, "[Device 0x%02X] Digital Vibration Sensor: %s [%s]", 
+                                          source, vib_state ? "TRIGGERED" : "NORMAL", identifier);
+                                log_message(LOG_DEBUG, "Digital vibration sensor - GPIO State: %u (%s), Sensor: %s", 
+                                          vib_state, vib_state ? "HIGH" : "LOW", identifier);
                                 
                                 // Update device activity
                                 update_device_activity(source, "Vibration");
