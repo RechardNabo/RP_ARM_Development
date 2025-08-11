@@ -217,15 +217,15 @@
 #define MSG_ENV_OXYGEN_CONCENTRATION    0x54    // Oxygen concentration sensors
 #define MSG_ENV_LIGHT_SENSORS           0x55    // Light sensors (visible, UV, IR)
 #define MSG_ENV_SOUND_NOISE_LEVEL       0x56    // Sound/noise level sensors
-#define MSG_ENV_WIND_SPEED              0x57    // Wind speed sensors
-#define MSG_ENV_WIND_DIRECTION          0x58    // Wind direction sensors
-#define MSG_ENV_RAIN_PRECIPITATION      0x59    // Rain/precipitation sensors
-#define MSG_ENV_SOIL_MOISTURE           0x5A    // Soil moisture sensors
-#define MSG_ENV_PH_SENSORS              0x5B    // pH sensors
-#define MSG_ENV_CONDUCTIVITY            0x5C    // Conductivity sensors
-#define MSG_ENV_TURBIDITY               0x5D    // Turbidity sensors
-#define MSG_ENV_RADIATION               0x5E    // Radiation sensors
-#define MSG_ENV_WEATHER_STATION         0x5F    // Weather station data
+#define MSG_ENV_MICROPHONE_LEVEL        0x57    // Microphone sound level
+#define MSG_ENV_WIND_SPEED              0x58    // Wind speed sensors
+#define MSG_ENV_WIND_DIRECTION          0x59    // Wind direction sensors
+#define MSG_ENV_RAIN_PRECIPITATION      0x5A    // Rain/precipitation sensors
+#define MSG_ENV_SOIL_MOISTURE           0x5B    // Soil moisture sensors
+#define MSG_ENV_PH_SENSORS              0x5C    // pH sensors
+#define MSG_ENV_CONDUCTIVITY            0x5D    // Conductivity sensors
+#define MSG_ENV_TURBIDITY               0x5E    // Turbidity sensors
+#define MSG_ENV_RADIATION               0x5F    // Radiation sensors
 
 /* ========================================================================== */
 /*                         MOTION & POSITION SENSORS                         */
@@ -245,7 +245,7 @@
 #define MSG_POSITION_LINEAR_SENSORS     0x6A    // Linear position sensors (LVDT, potentiometer)
 #define MSG_POSITION_ROTARY_SENSORS     0x6B    // Rotary position sensors
 #define MSG_MOTION_DETECTION            0x6C    // Motion detection (PIR, microwave)
-#define MSG_IMU_DATA                    0x6D    // Inertial measurement unit (IMU) data
+#define MSG_MOTION_VIBRATION            0x6D    // Vibration detection/monitoring
 #define MSG_VELOCITY_SPEED              0x6E    // Velocity/speed measurements
 #define MSG_DISPLACEMENT                0x6F    // Displacement measurements
 
