@@ -101,7 +101,7 @@ void print_device_statistics();
 
 // InfluxDB configuration
 #define INFLUXDB_URL "http://localhost:8086/ping"
-#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=95865781daf30ded&bucket=_monitoring&precision=ns"
+#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=9586578ldaf30ded&bucket=_monitoring&precision=ns"
 #define INFLUXDB_TOKEN "KNGXplVdrjHBxMRB-iEz2hIIvZ2hFhZ0voviIaOhLDqCLam5YBKzYTp-dxwDSuKIn5RNaPnUZ6yIYdgEzj4tYA=="
 
 // Global variables
