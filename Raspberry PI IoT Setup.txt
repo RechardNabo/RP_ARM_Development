@@ -10,8 +10,10 @@ sudo apt install influxdb2
 sudo systemctl unmask influxdb
 sudo systemctl enable influxdb
 sudo systemctl start influxdb
+sudo apt install libcurl4-openssl-dev
+sudo apt install libmongoc-dev libbson-dev
 
-
+KNGXplVdrjHBxMRB-iEz2hIIvZ2hFhZ0voviIaOhLDqCLam5YBKzYTp-dxwDSuKIn5RNaPnUZ6yIYdgEzj4tYA==
 
 ##############################[Node JS Runtime ]#############################
 
@@ -200,3 +202,13 @@ scrape_configs:
   run envoronment assignment 
   sudo pm2 startup
   #############################################
+  
+sudo nano /boot/firmware/config.txt
+# Enable SPI (required for MCP2515)
+dtparam=spi=on
+
+# Enable MCP2515 CAN controller (adjust pin if needed)
+dtoverlay=mcp2515-can0,oscillator=8000000,interrupt=25
+dtoverlay=spi-bcm2835-overlay
+sudo apt update
+sudo apt install can-utils
