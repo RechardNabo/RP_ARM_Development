@@ -101,7 +101,7 @@ void print_device_statistics();
 
 // InfluxDB configuration
 #define INFLUXDB_URL "http://localhost:8086/ping"
-#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=13d05bde442bdf3e&bucket=9bc78cd957450d55&precision=ns"
+#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=13d05bde442bdf3e&bucket=_monitoring&precision=ns"
 #define INFLUXDB_TOKEN "KNGXplVdrjHBxMRB-iEz2hIIvZ2hFhZ0voviIaOhLDqCLam5YBKzYTp-dxwDSuKIn5RNaPnUZ6yIYdgEzj4tYA=="
 
 // Global variables
@@ -1369,10 +1369,8 @@ void process_all_can_messages(int can_socket) {
                                                                     last_current, last_power_r1, last_power_r2, last_power_r3, 
                                                                     "CAN")) {
                                         influx_writes++;
-                                        log_message(LOG_DEBUG, "Wrote CAN resistor data to InfluxDB");
                                     } else {
                                         error_count++;
-                                        log_message(LOG_ERROR, "Failed to write CAN resistor data to InfluxDB");
                                     }
                                 }
                             }
