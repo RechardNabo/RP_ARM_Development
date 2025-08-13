@@ -482,7 +482,7 @@ bool init_curl_resources() {
     
     // Set up headers once
     char auth_header[256];
-    snprintf(auth_header, sizeof(auth_header), "Authorization: Token %s", INFLUXDB_TOKEN);
+    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", INFLUXDB_TOKEN);
     headers = curl_slist_append(NULL, auth_header);
     headers = curl_slist_append(headers, "Content-Type: text/plain; charset=utf-8");
     
