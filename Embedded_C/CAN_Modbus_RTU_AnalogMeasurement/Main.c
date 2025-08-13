@@ -101,7 +101,7 @@ void print_device_statistics();
 
 // InfluxDB configuration
 #define INFLUXDB_URL "http://localhost:8086/ping"
-#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=9586578ldaf30ded&bucket=9bc78cd957450d55&precision=ns"
+#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=9586578ldaf30ded&bucket=_monitoring&precision=ns"
 #define INFLUXDB_TOKEN "KNGXplVdrjHBxMRB-iEz2hIIvZ2hFhZ0voviIaOhLDqCLam5YBKzYTp-dxwDSuKIn5RNaPnUZ6yIYdgEzj4tYA=="
 
 // Global variables
@@ -482,7 +482,7 @@ bool init_curl_resources() {
     
     // Set up headers once
     char auth_header[256];
-    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", INFLUXDB_TOKEN);
+    snprintf(auth_header, sizeof(auth_header), "Authorization: Token %s", INFLUXDB_TOKEN);
     headers = curl_slist_append(NULL, auth_header);
     headers = curl_slist_append(headers, "Content-Type: text/plain; charset=utf-8");
     
