@@ -102,7 +102,7 @@ void print_device_statistics();
 // InfluxDB configuration
 #define INFLUXDB_URL "http://localhost:8086/ping"
 #define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=9433a3d38dc34293&bucket=_monitoring&precision=ns"
-#define INFLUXDB_TOKEN "1XlVsaw2ko-fG0TGccLNKi3IfQ6tst9zMGglcUQCMrnJ-5--KkxpxLIWIWtYH8XbSWTyTxQSI32Bv9zByKr_ag=="
+#define INFLUXDB_TOKEN "KNGXplVdrjHBxMRB-iEz2hIIvZ2hFhZ0voviIaOhLDqCLam5YBKzYTp-dxwDSuKIn5RNaPnUZ6yIYdgEzj4tYA=="
 
 // Global variables
 LogLevel log_level = LOG_INFO;
