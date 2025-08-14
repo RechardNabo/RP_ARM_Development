@@ -159,6 +159,61 @@ bool test_influxdb_connection() {
     return connection_successful;
 }
 
+// Function to get organization info
+bool get_organizations() {
+    CURL *curl;
+    CURLcode res;
+    bool success = false;
+    struct curl_slist *headers = NULL;
+    struct WriteResponse response = {0};
+    
+    response.memory = malloc(1);
+    response.size = 0;
+
+    printf("[INFO] Fetching organizations...\n");
+    
+    curl = curl_easy_init();
+    if (curl) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "Authorization: Token %s", INFLUXDB_TOKEN);
+        headers = curl_slist_append(headers, auth_header);
+        headers = curl_slist_append(headers, "Accept: application/json");
+        
+        curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8086/api/v2/orgs");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&response);
+
+        res = curl_easy_perform(curl);
+
+        if (res == CURLE_OK) {
+            long response_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+            
+            if (response_code == 200 && response.memory) {
+                printf("[SUCCESS] Organizations response:\n%s\n", response.memory);
+                success = true;
+            } else {
+                printf("[ERROR] Failed to get organizations. HTTP code: %ld\n", response_code);
+                if (response.memory) {
+                    printf("[ERROR] Error: %s\n", response.memory);
+                }
+            }
+        } else {
+            printf("[ERROR] CURL failed: %s\n", curl_easy_strerror(res));
+        }
+
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+    }
+    
+    if (response.memory) {
+        free(response.memory);
+    }
+
+    return success;
+}
+
 // Function to test token and bucket permissions
 bool test_write_permissions() {
     printf("[INFO] Testing write permissions...\n");
@@ -184,10 +239,19 @@ int main() {
         return 1;
     }
 
+    // Get organization information
+    printf("[INFO] Checking available organizations...\n");
+    if (!get_organizations()) {
+        printf("[ERROR] Failed to get organization info.\n");
+        curl_global_cleanup();
+        return 1;
+    }
+
     // Test write permissions
     printf("[INFO] Testing write permissions with a sample data point...\n");
     if (!test_write_permissions()) {
         printf("[ERROR] Write test failed. Check token permissions and bucket access.\n");
+        printf("[INFO] Try updating the organization ID based on the organizations listed above.\n");
         curl_global_cleanup();
         return 1;
     }
