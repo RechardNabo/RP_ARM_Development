@@ -7,7 +7,7 @@
 #include <time.h>
 
 #define INFLUXDB_URL "http://localhost:8086/ping"  // InfluxDB ping endpoint
-#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=13d05bde442bdf3e&bucket=9bc78cd957450d55&precision=ns"
+#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=13d05bde442bdf3e&bucket=_monitoring&precision=ns"
 #define INFLUXDB_TOKEN "KNGXplVdrjHBxMRB-iEz2hIIvZ2hFhZ0voviIaOhLDqCLam5YBKzYTp-dxwDSuKIn5RNaPnUZ6yIYdgEzj4tYA=="
 
 // Callback function to handle response
