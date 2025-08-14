@@ -1369,9 +1369,10 @@ void process_all_can_messages(int can_socket) {
                                                                     last_current, last_power_r1, last_power_r2, last_power_r3, 
                                                                     "CAN")) {
                                         influx_writes++;
+                                        log_message(LOG_DEBUG, "Wrote CAN resistor data to InfluxDB");
                                     } else {
                                         error_count++;
-                                    }
+                                        log_message(LOG_ERROR, "Failed to write CAN resistor data to InfluxDB");                                    }
                                 }
                             }
                             break;
