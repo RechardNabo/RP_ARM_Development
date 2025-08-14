@@ -101,8 +101,8 @@ void print_device_statistics();
 
 // InfluxDB configuration
 #define INFLUXDB_URL "http://localhost:8086/ping"
-#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=13d05bde442bdf3e&bucket=_monitoring&precision=ns"
-#define INFLUXDB_TOKEN "KNGXplVdrjHBxMRB-iEz2hIIvZ2hFhZ0voviIaOhLDqCLam5YBKzYTp-dxwDSuKIn5RNaPnUZ6yIYdgEzj4tYA=="
+#define INFLUXDB_WRITE_URL "http://localhost:8086/api/v2/write?org=1ad9946d95ed1f17&bucket=_monitoring&precision=ns"
+#define INFLUXDB_TOKEN "n42FdVEFModulJNOGZDYP1wqbbr0VQeeVlSC85hAWh4_olF_5K217koKdfxiAnNe9gzLGxuX6sCQamxVAiNuEA=="
 
 // Global variables
 LogLevel log_level = LOG_INFO;
@@ -419,10 +419,29 @@ void delay_ms(int milliseconds) {
     nanosleep(&ts, NULL);
 }
 
-// Callback function to handle response from InfluxDB
+// Structure to capture response data
+struct WriteResponse {
+    char *memory;
+    size_t size;
+};
+
+// Callback function to handle response and capture error messages
 size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
-    // We don't need to process the response, just return bytes received
-    return size * nmemb;
+    size_t realsize = size * nmemb;
+    struct WriteResponse *mem = (struct WriteResponse *)userp;
+
+    char *ptr = realloc(mem->memory, mem->size + realsize + 1);
+    if (!ptr) {
+        printf("[ERROR] Not enough memory (realloc returned NULL)\n");
+        return 0;
+    }
+
+    mem->memory = ptr;
+    memcpy(&(mem->memory[mem->size]), contents, realsize);
+    mem->size += realsize;
+    mem->memory[mem->size] = 0;
+
+    return realsize;
 }
 
 // Print timestamp and log message based on log level
@@ -504,84 +523,157 @@ void cleanup_curl_resources() {
 
 // Test connection to InfluxDB
 bool test_influxdb_connection() {
+    CURL *curl;
     CURLcode res;
     bool connection_successful = false;
-    long response_code;
-
+    struct WriteResponse response = {0};
+    
+    // Initialize response buffer
+    response.memory = malloc(1);
+    response.size = 0;
+    
     log_message(LOG_INFO, "Testing connection to InfluxDB...");
     
-    // Reset handle for fresh configuration
-    curl_easy_reset(curl_handle);
-    
-    // Set URL
-    curl_easy_setopt(curl_handle, CURLOPT_URL, INFLUXDB_URL);
-    
-    // Set callback function
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback);
-    
-    // Set timeout to prevent hanging
-    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 5L);
-    
-    // Perform request
-    res = curl_easy_perform(curl_handle);
-
-    // Check for errors
-    if (res != CURLE_OK) {
-        log_message(LOG_ERROR, "Connection failed: %s", curl_easy_strerror(res));
-    } else {
-        // Get HTTP response code
-        curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+    curl = curl_easy_init();
+    if (curl) {
+        // Set URL
+        curl_easy_setopt(curl, CURLOPT_URL, INFLUXDB_URL);
         
-        if (response_code == 204) {  // InfluxDB returns 204 for successful ping
-            log_message(LOG_INFO, "Successfully connected to InfluxDB");
-            connection_successful = true;
+        // Set headers
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "Authorization: Token %s", INFLUXDB_TOKEN);
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, auth_header);
+        headers = curl_slist_append(headers, "Accept: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        
+        // Set callback function
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&response);
+        
+        // Set timeout to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+        
+        // Enable verbose output for debugging
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        
+        // Perform request
+        res = curl_easy_perform(curl);
+        
+        // Check for errors
+        if (res != CURLE_OK) {
+            log_message(LOG_ERROR, "Connection failed: %s", curl_easy_strerror(res));
         } else {
-            log_message(LOG_ERROR, "Unexpected response code: %ld (expected 204)", response_code);
+            long response_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+            
+            if (response_code == 204) {  // InfluxDB returns 204 for successful ping
+                log_message(LOG_INFO, "Successfully connected to InfluxDB");
+                connection_successful = true;
+            } else {
+                log_message(LOG_ERROR, "Unexpected response code: %ld (expected 204)", response_code);
+                if (response.memory && response.size > 0) {
+                    log_message(LOG_ERROR, "Response: %s", response.memory);
+                }
+            }
         }
+        
+        // Clean up
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+    } else {
+        log_message(LOG_ERROR, "Failed to initialize CURL handle");
     }
-
+    
+    // Free response memory
+    if (response.memory) {
+        free(response.memory);
+    }
+    
     return connection_successful;
 }
 
 // Write temperature and humidity data to InfluxDB
 bool write_to_influxdb(float temperature, float humidity, const char *source) {
+    CURL *curl;
     CURLcode res;
     bool write_successful = false;
-    static char data[256];  // Static to avoid stack allocations
+    char data[512];
+    struct WriteResponse response = {0};
     
-    log_message(LOG_DEBUG, "Writing to InfluxDB - Source: %s, Temperature: %.2f, Humidity: %.2f", 
-                source, temperature, humidity);
+    // Initialize response buffer
+    response.memory = malloc(1);
+    response.size = 0;
     
-    // Create InfluxDB line protocol format with source tag
-    // Format: measurement,tag_set field_set timestamp
-    snprintf(data, sizeof(data), "environment,sensor=ESP32,source=%s temperature=%.2f,humidity=%.2f", 
-             source, temperature, humidity);
+    // Get current timestamp in nanoseconds
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    long long timestamp_ns = (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
     
-    // Reset handle for fresh configuration
-    curl_easy_reset(curl_handle);
+    // Create InfluxDB line protocol format with source tag and timestamp
+    snprintf(data, sizeof(data), 
+             "environment,sensor=ESP32,source=%s temperature=%.2f,humidity=%.2f %lld", 
+             source, temperature, humidity, timestamp_ns);
     
-    // Set URL and headers
-    curl_easy_setopt(curl_handle, CURLOPT_URL, INFLUXDB_WRITE_URL);
-    curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl_handle, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, data);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 3L); // Set a timeout to prevent hanging
+    log_message(LOG_DEBUG, "Writing to InfluxDB: %s", data);
+    
+    curl = curl_easy_init();
+    if (curl) {
+        // Set headers
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "Authorization: Token %s", INFLUXDB_TOKEN);
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, auth_header);
+        headers = curl_slist_append(headers, "Content-Type: text/plain; charset=utf-8");
+        headers = curl_slist_append(headers, "Accept: application/json");
+        
+        // Set URL and headers
+        curl_easy_setopt(curl, CURLOPT_URL, INFLUXDB_WRITE_URL);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&response);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+        
+        // Enable verbose output for debugging
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
-    // Perform request
-    res = curl_easy_perform(curl_handle);
+        // Perform request
+        res = curl_easy_perform(curl);
 
-    if (res == CURLE_OK) {
-        long response_code;
-        curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-        if (response_code == 204) {
-            write_successful = true;
-            log_message(LOG_INFO, "Successfully wrote %s environmental data to InfluxDB", source);
+        if (res == CURLE_OK) {
+            long response_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+            log_message(LOG_DEBUG, "HTTP Response code: %ld", response_code);
+            
+            if (response.memory && response.size > 0) {
+                log_message(LOG_DEBUG, "Response body: %s", response.memory);
+            }
+            
+            if (response_code == 204) {
+                write_successful = true;
+                log_message(LOG_INFO, "Successfully wrote %s environmental data to InfluxDB", source);
+            } else {
+                log_message(LOG_ERROR, "Failed to write to InfluxDB: HTTP code %ld", response_code);
+                if (response.memory) {
+                    log_message(LOG_ERROR, "Error message: %s", response.memory);
+                }
+            }
         } else {
-            log_message(LOG_ERROR, "Failed to write to InfluxDB: HTTP code %ld", response_code);
+            log_message(LOG_ERROR, "Failed to write to InfluxDB: %s", curl_easy_strerror(res));
         }
+        
+        // Clean up
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
     } else {
-        log_message(LOG_ERROR, "Failed to write to InfluxDB: %s", curl_easy_strerror(res));
+        log_message(LOG_ERROR, "Failed to initialize CURL handle");
+    }
+    
+    // Free response memory
+    if (response.memory) {
+        free(response.memory);
     }
 
     return write_successful;
