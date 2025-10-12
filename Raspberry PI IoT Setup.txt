@@ -40,7 +40,9 @@ hostname -I
 1XlVsaw2ko-fG0TGccLNKi3IfQ6tst9zMGglcUQCMrnJ-5--KkxpxLIWIWtYH8XbSWTyTxQSI32Bv9zByKr_ag==
 
 ################################[Mongo Database]###########################
-
+# Download from the Debian archive
+wget http://ftp.debian.org/debian/pool/main/o/openssl/libssl1.1_1.1.1w-0+deb11u1_arm64.deb
+sudo dpkg -i libssl1.1_1.1.1w-0+deb11u1_arm64.deb
 
 echo 'deb [arch=arm64] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse' | sudo tee /etc/apt/sources.list.d/mongodb-org-4.4.list
 sudo wget -O /etc/apt/trusted.gpg.d/mongodb-repo.asc https://www.mongodb.org/static/pgp/server-4.4.asc
