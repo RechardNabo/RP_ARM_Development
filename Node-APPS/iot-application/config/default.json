@@ -1,0 +1,30 @@
+{
+  "app": {
+    "host": "localhost",
+    "port": 3001,
+    "devPort": 3018,
+    "networkIp": "10.10.0.206",
+    "apiBaseUrl": "http://localhost:3001"
+  },
+  "services": {
+    "mongodb": {
+      "host": "localhost",
+      "port": 27017,
+      "database": "cm4_iot_data",
+      "username": "",
+      "password": "",
+      "authSource": ""
+    },
+    "influxdb": {
+      "url": "http://localhost:8086",
+      "token": "",
+      "org": "cm4_org",
+      "bucket": "cm4_iot_data"
+    },
+    "grafana": {
+      "url": "http://localhost:3000",
+      "username": "admin",
+      "password": "admin"
+    }
+  }
+}

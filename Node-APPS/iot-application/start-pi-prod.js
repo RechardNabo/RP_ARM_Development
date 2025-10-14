@@ -1,8 +1,12 @@
 const { createServer } = require('http');
+const path = require('path');
 const next = require('next');
 
+const appConfig = require(path.resolve(__dirname, './config/default.json'));
+
 // Configuration
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || appConfig?.app?.port || 3001;
+const host = process.env.HOST || appConfig?.app?.host || 'localhost';
 const dev = process.env.NODE_ENV !== 'production';
 
 // Performance and memory optimizations for Raspberry Pi
@@ -108,9 +112,9 @@ console.log = function(...args) {
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     handle(req, res);
-  }).listen(port, (err) => {
+  }).listen(port, host, (err) => {
     if (err) throw err;
-    console.log(`> Ready on http://localhost:${port}`);
+    console.log(`> Ready on http://${host}:${port}`);
   });
 
   // Handle process termination

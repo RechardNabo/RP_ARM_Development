@@ -1,5 +1,6 @@
 // InfluxDB connection service for the CM4-IO-WIRELESS-BASE
 import { InfluxDB, Point, type WriteApi, type QueryApi } from "@influxdata/influxdb-client"
+import { appConfig } from "@/lib/config"
 
 export interface InfluxDBConfig {
   url: string
@@ -23,12 +24,12 @@ export class InfluxDBService {
   public static getInstance(config?: InfluxDBConfig): InfluxDBService {
     if (!InfluxDBService.instance) {
       if (!config) {
-        // Default configuration for local InfluxDB on Raspberry Pi
+        const influxDefaults = appConfig.services?.influxdb
         config = {
-          url: "http://localhost:8086",
-          token: "", // In a real setup, this would be a valid token
-          org: "cm4_org",
-          bucket: "cm4_iot_data",
+          url: influxDefaults?.url || "http://localhost:8086",
+          token: influxDefaults?.token || "",
+          org: influxDefaults?.org || "cm4_org",
+          bucket: influxDefaults?.bucket || "cm4_iot_data",
         }
       }
       InfluxDBService.instance = new InfluxDBService(config)

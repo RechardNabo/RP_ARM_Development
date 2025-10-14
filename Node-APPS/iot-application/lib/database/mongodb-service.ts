@@ -1,5 +1,6 @@
 // MongoDB connection service for the CM4-IO-WIRELESS-BASE
 import { MongoClient, type Db, type Collection } from "mongodb"
+import { appConfig } from "@/lib/config"
 
 export interface MongoDBConfig {
   host: string
@@ -51,11 +52,14 @@ export class MongoDBService {
   public static getInstance(config?: MongoDBConfig): MongoDBService {
     if (!MongoDBService.instance) {
       if (!config) {
-        // Default configuration for local MongoDB on Raspberry Pi
+        const mongoDefaults = appConfig.services?.mongodb
         config = {
-          host: "localhost",
-          port: 27017,
-          database: "cm4_iot_data",
+          host: mongoDefaults?.host || "localhost",
+          port: mongoDefaults?.port || 27017,
+          database: mongoDefaults?.database || "cm4_iot_data",
+          username: mongoDefaults?.username || undefined,
+          password: mongoDefaults?.password || undefined,
+          authSource: mongoDefaults?.authSource || undefined,
         }
       }
       MongoDBService.instance = new MongoDBService(config)
