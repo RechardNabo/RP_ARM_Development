@@ -1,2 +1,2 @@
 # Dev_RP3_c
- Raspberry Pi3 GPIO C Embedded and IoT
+ Raspberry ARM C Embedded and NodeJS IoT
